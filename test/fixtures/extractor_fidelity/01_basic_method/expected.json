@@ -1,0 +1,57 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "BinaryOpExpr",
+            "lhs": {
+              "kind": "VarRefExpr",
+              "name": "a"
+            },
+            "op": "+",
+            "rhs": {
+              "kind": "VarRefExpr",
+              "name": "b"
+            }
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "nameParts": [
+              "int"
+            ]
+          }
+        },
+        {
+          "name": "b",
+          "type": {
+            "nameParts": [
+              "int"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Basic.add",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Basic"
+    }
+  ]
+}

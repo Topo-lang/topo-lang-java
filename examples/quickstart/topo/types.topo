@@ -1,0 +1,47 @@
+// types.topo — order processing domain types
+
+using Int = std::java::int;
+using Boolean = std::java::boolean;
+using Double = std::java::double;
+
+namespace orders {
+  public:
+    type Order {
+      public:
+        explicit Order(Int id, Int customerId);
+        Int id() const;
+        Int customerId() const;
+        Double total() const;
+        Int itemCount() const;
+        Boolean isValid() const;
+      private:
+        Int orderId;
+        Int custId;
+        Double amount;
+    }
+
+    type PaymentResult {
+      public:
+        Boolean approved() const;
+        Int transactionId() const;
+        Double chargedAmount() const;
+    }
+
+    type ShippingQuote {
+      public:
+        Double cost() const;
+        Int estimatedDays() const;
+        Int carrierId() const;
+    }
+
+    type Invoice {
+      public:
+        explicit Invoice(Int orderId, Int transactionId, Double total);
+        Int number() const;
+        Double grandTotal() const;
+        Boolean isFinalized() const;
+      private:
+        Int invNumber;
+        Double total;
+    }
+}

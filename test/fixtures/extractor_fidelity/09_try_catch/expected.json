@@ -1,0 +1,29 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "description": "try statement",
+          "kind": "UnsupportedExpr"
+        }
+      ],
+      "fidelity": "source",
+      "params": [],
+      "qualifiedName": "Safe.tryFn",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Safe"
+    }
+  ]
+}

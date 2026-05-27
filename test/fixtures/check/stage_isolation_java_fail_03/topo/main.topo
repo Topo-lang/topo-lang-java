@@ -1,0 +1,20 @@
+// Two stage<1> methods (`loadA`, `loadB`) both call into the stage<2>
+// `merge` method.  Two distinct forward stage violations expected.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void loadA();
+        void loadB();
+        void merge();
+    }
+
+    fn run {
+        stage<1> app::App::loadA();
+        stage<1> app::App::loadB();
+        stage<2> app::App::merge();
+    }
+}

@@ -1,0 +1,23 @@
+// Visibility violation: a private method declared in `app::Lib` is called
+// from a different class `app::Consumer`.
+
+namespace app {
+  public:
+    void pipeline();
+
+    type Lib {
+      public:
+        void publicEntry();
+      private:
+        void helper();
+    }
+
+    type Consumer {
+      public:
+        void invoke();
+    }
+
+    fn pipeline {
+        stage<1> app::Lib::publicEntry();
+    }
+}

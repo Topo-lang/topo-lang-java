@@ -1,0 +1,68 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "VarRefExpr",
+            "name": "a"
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "nameParts": [
+              "U"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Box.pick",
+      "returnType": {
+        "nameParts": [
+          "U"
+        ]
+      },
+      "templateParams": [
+        {
+          "bound": {
+            "nameParts": [
+              "Comparable"
+            ]
+          },
+          "kind": "type",
+          "name": "U"
+        }
+      ],
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [
+        {
+          "fidelity": "source",
+          "name": "v",
+          "type": {
+            "nameParts": [
+              "T"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Box",
+      "templateParams": [
+        {
+          "kind": "type",
+          "name": "T"
+        }
+      ]
+    }
+  ]
+}

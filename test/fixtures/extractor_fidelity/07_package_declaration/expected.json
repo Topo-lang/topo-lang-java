@@ -1,0 +1,33 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "LiteralExpr",
+            "literalKind": "int",
+            "value": "42"
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [],
+      "qualifiedName": "com.example.Pkg.val",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "com.example.Pkg"
+    }
+  ]
+}

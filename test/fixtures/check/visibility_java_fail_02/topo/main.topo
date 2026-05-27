@@ -1,0 +1,18 @@
+// Visibility violation: an internal function called from an external (not
+// declared in .topo) Java method.
+
+namespace app {
+  public:
+    void pipeline();
+
+    type Lib {
+      public:
+        void publicEntry();
+      internal:
+        void initInternal();
+    }
+
+    fn pipeline {
+        stage<1> app::Lib::publicEntry();
+    }
+}

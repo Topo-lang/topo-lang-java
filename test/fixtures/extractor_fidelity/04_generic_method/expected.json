@@ -1,0 +1,47 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "VarRefExpr",
+            "name": "t"
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [
+        {
+          "name": "t",
+          "type": {
+            "nameParts": [
+              "T"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Generic.identity",
+      "returnType": {
+        "nameParts": [
+          "T"
+        ]
+      },
+      "templateParams": [
+        {
+          "kind": "type",
+          "name": "T"
+        }
+      ],
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Generic"
+    }
+  ]
+}

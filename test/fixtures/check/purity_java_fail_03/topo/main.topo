@@ -1,0 +1,19 @@
+// Purity violation: ++ticks (prefix), ticks++ (postfix), and ticks += 5
+// (compound assignment) are all writes to a static field from a parallel
+// stage.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void compute();
+        void render();
+    }
+
+    fn run {
+        stage<1> app::App::compute();
+        stage<1> app::App::render();
+    }
+}

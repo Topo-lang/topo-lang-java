@@ -1,0 +1,102 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "condition": {
+            "kind": "BinaryOpExpr",
+            "lhs": {
+              "kind": "VarRefExpr",
+              "name": "n"
+            },
+            "op": ">",
+            "rhs": {
+              "kind": "LiteralExpr",
+              "literalKind": "int",
+              "value": "0"
+            }
+          },
+          "elseBody": [
+            {
+              "condition": {
+                "kind": "BinaryOpExpr",
+                "lhs": {
+                  "kind": "VarRefExpr",
+                  "name": "n"
+                },
+                "op": "<",
+                "rhs": {
+                  "kind": "LiteralExpr",
+                  "literalKind": "int",
+                  "value": "0"
+                }
+              },
+              "elseBody": [
+                {
+                  "kind": "ReturnStmt",
+                  "value": {
+                    "kind": "LiteralExpr",
+                    "literalKind": "int",
+                    "value": "0"
+                  }
+                }
+              ],
+              "kind": "IfStmt",
+              "thenBody": [
+                {
+                  "kind": "ReturnStmt",
+                  "value": {
+                    "kind": "UnaryOpExpr",
+                    "op": "-",
+                    "operand": {
+                      "kind": "LiteralExpr",
+                      "literalKind": "int",
+                      "value": "1"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "kind": "IfStmt",
+          "thenBody": [
+            {
+              "kind": "ReturnStmt",
+              "value": {
+                "kind": "LiteralExpr",
+                "literalKind": "int",
+                "value": "1"
+              }
+            }
+          ]
+        }
+      ],
+      "fidelity": "source",
+      "params": [
+        {
+          "name": "n",
+          "type": {
+            "nameParts": [
+              "int"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Sign.sign",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Sign"
+    }
+  ]
+}

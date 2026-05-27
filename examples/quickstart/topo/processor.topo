@@ -1,0 +1,35 @@
+// processor.topo — order processing pipeline with stages and parallel ops
+
+import types;
+
+namespace orders {
+  public:
+    Invoice processOrder(const Order& order);
+
+    fn processOrder {
+      stage<1> validateOrder(order);
+      stage<2> chargePayment(order) -> payment;
+      stage<2> calculateShipping(order) -> shipping;
+      stage<3> createInvoice(order, payment, shipping) -> invoice;
+      stage<4> sendConfirmation(invoice);
+      stage<4> updateAnalytics(order, invoice);
+    }
+
+  protected:
+    Boolean validateOrder(const Order& order);
+    PaymentResult chargePayment(const Order& order);
+    ShippingQuote calculateShipping(const Order& order);
+    Invoice createInvoice(const Order& order,
+                          const PaymentResult& payment,
+                          const ShippingQuote& shipping);
+
+  private:
+    void sendConfirmation(const Invoice& invoice);
+    void updateAnalytics(const Order& order, const Invoice& invoice);
+    Boolean checkInventory(Int itemId, Int quantity);
+    Boolean verifyAddress(Int customerId);
+    Double applyDiscount(Double total, Int customerId);
+
+  internal:
+    void dumpOrderState(const Order& order);
+}

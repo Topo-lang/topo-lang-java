@@ -1,0 +1,18 @@
+// Two methods both at stage<1>.  Calling between same-stage peers does not
+// violate the stage-ordering constraint.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void load();
+        void prefetch();
+    }
+
+    fn run {
+        stage<1> app::App::load();
+        stage<1> app::App::prefetch();
+    }
+}

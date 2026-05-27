@@ -1,0 +1,16 @@
+// All public-to-public calls — no visibility violations.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void compute();
+        void render();
+    }
+
+    fn run {
+        stage<1> app::App::compute();
+    }
+}

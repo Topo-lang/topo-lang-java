@@ -1,0 +1,25 @@
+// Two classes: a public bridge and a private worker.  Worker is private, so
+// only the bridge can call it.  Bridge calls worker — same class, allowed.
+// Then bridge calls publicHelper from a sibling class — that's public, no
+// visibility constraint.
+
+namespace app {
+  public:
+    void pipeline();
+
+    type Bridge {
+      public:
+        void coordinate();
+      private:
+        void worker();
+    }
+
+    type Util {
+      public:
+        void publicHelper();
+    }
+
+    fn pipeline {
+        stage<1> app::Bridge::coordinate();
+    }
+}

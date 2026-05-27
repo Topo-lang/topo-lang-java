@@ -1,0 +1,92 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "init": {
+            "kind": "LiteralExpr",
+            "literalKind": "int",
+            "value": "0"
+          },
+          "kind": "VarDeclStmt",
+          "name": "s",
+          "type": {
+            "nameParts": [
+              "int"
+            ]
+          }
+        },
+        {
+          "body": [
+            {
+              "kind": "AssignStmt",
+              "target": {
+                "kind": "VarRefExpr",
+                "name": "s"
+              },
+              "value": {
+                "kind": "BinaryOpExpr",
+                "lhs": {
+                  "kind": "VarRefExpr",
+                  "name": "s"
+                },
+                "op": "+",
+                "rhs": {
+                  "kind": "LiteralExpr",
+                  "literalKind": "int",
+                  "value": "1"
+                }
+              }
+            }
+          ],
+          "condition": {
+            "kind": "BinaryOpExpr",
+            "lhs": {
+              "kind": "VarRefExpr",
+              "name": "s"
+            },
+            "op": "<",
+            "rhs": {
+              "kind": "VarRefExpr",
+              "name": "n"
+            }
+          },
+          "kind": "WhileStmt"
+        },
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "VarRefExpr",
+            "name": "s"
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [
+        {
+          "name": "n",
+          "type": {
+            "nameParts": [
+              "int"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Count.count",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Count"
+    }
+  ]
+}

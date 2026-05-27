@@ -1,0 +1,33 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "LiteralExpr",
+            "literalKind": "int",
+            "value": "7"
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [],
+      "qualifiedName": "Greeter.defaultValue",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Greeter"
+    }
+  ]
+}

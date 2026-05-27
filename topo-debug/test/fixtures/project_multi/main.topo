@@ -1,0 +1,35 @@
+// Java counterpart of topo-lang-cpp/topo-debug/test/fixtures/project_multi/main.topo.
+//
+// Two host arrays in scope (`int[] a`, `int[] b`, both length 4) — the
+// summary template references both, so resolving it exercises the
+// multi-var adapter protocol and the batched-summary single-spawn path.
+//
+// Validates the full topo-build-jvm-java flow + JDI multi-var queries:
+// `topo build` compiles + transforms + packages, writes main.topo-dbg.json
+// (the view registry), and `topo debug` discovers it next to the launcher.
+// Each adapter spawn passes `--var a,b`; the JDI side reads both locals
+// from the same suspended frame.
+
+using Int = std::java::int;
+
+namespace app {
+  public:
+    type TwoArrays {
+      public:
+        Int a;
+        Int b;
+    }
+}
+
+debug TwoArrays {
+  view first from a[0..2];
+  view second from b[2..4];
+  // Placeholders resolve to host locals `a` and `b` directly (binary arith
+  // on the values is evaluated by the query engine, not the adapter).
+  // At the breakpoint in Main.java:
+  //   sum(a)              = 10   (1+2+3+4)
+  //   sum(b)              = 100  (10+20+30+40)
+  //   sum(a) + sum(b)     = 110
+  //   max(b) - max(a)     = 36   (40 - 4)
+  summary "a={sum(a)}, b={sum(b)}, total={sum(a) + sum(b)}, span={max(b) - max(a)}";
+}

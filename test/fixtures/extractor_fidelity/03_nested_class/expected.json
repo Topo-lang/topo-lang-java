@@ -1,0 +1,38 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "LiteralExpr",
+            "literalKind": "int",
+            "value": "1"
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [],
+      "qualifiedName": "Outer.Inner.innerValue",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Outer"
+    },
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Outer.Inner"
+    }
+  ]
+}

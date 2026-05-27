@@ -1,0 +1,18 @@
+// Stage isolation violation: stage<1> method `init` calls stage<2> method
+// `process` at the host level.  This is a forward stage dependency.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void init();
+        void process();
+    }
+
+    fn run {
+        stage<1> app::App::init();
+        stage<2> app::App::process();
+    }
+}

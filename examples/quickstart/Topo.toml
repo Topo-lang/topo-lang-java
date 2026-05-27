@@ -1,0 +1,34 @@
+[project]
+name = "quickstart_java"
+
+[topo]
+root = "topo/processor.topo"
+
+[build]
+language = "java"
+sources = ["src/main/java"]
+output = "quickstart_java.jar"
+output_type = "exe"
+
+[build.java]
+target_version = "17"
+main_class = "orders.OrderProcessor"
+
+[completeness]
+ignore_main = true
+ignore_constructors = true
+ignore_patterns = [
+    # Type declarations and their members are checked structurally;
+    # suppress symbol-level matching for domain types.
+    "orders::Order",
+    "orders::Order::*",
+    "orders::PaymentResult",
+    "orders::PaymentResult::*",
+    "orders::ShippingQuote",
+    "orders::ShippingQuote::*",
+    "orders::Invoice",
+    "orders::Invoice::*",
+    # Organizational wrapper class
+    "orders::OrderProcessor",
+    "orders::OrderProcessor::*",
+]

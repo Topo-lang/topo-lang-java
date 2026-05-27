@@ -1,0 +1,12 @@
+[project]
+name = "stage_isolation_java_fail_01"
+
+[topo]
+root = "topo/main.topo"
+
+[build]
+language = "java"
+sources = ["src/*.java"]
+
+[stage_isolation]
+mode = "force"

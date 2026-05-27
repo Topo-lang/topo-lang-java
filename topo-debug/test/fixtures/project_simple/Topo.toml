@@ -1,0 +1,14 @@
+[project]
+name = "project_simple_java"
+
+[topo]
+root = "main.topo"
+
+[build]
+language = "java"
+sources = ["src/main/java"]
+output = "main.jar"
+output_type = "exe"
+
+[builder]
+mode = "dev"

@@ -1,0 +1,18 @@
+// Private method `detail` declared inside `app::App` is called by a sibling
+// in the same class — same namespace, allowed.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void coordinate();
+      private:
+        void detail();
+    }
+
+    fn run {
+        stage<1> app::App::coordinate();
+    }
+}

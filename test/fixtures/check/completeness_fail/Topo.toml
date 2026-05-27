@@ -1,0 +1,13 @@
+[project]
+name = "completeness_java_fail"
+
+[topo]
+root = "topo/main.topo"
+
+[build]
+language = "java"
+sources = ["src/*.java"]
+
+[completeness]
+ignore_constructors = true
+ignore_main = true

@@ -1,0 +1,18 @@
+// Purity violation: parallel stage method `compute` writes to a public
+// static field via a qualified `App.gValue` access.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void compute();
+        void render();
+    }
+
+    fn run {
+        stage<1> app::App::compute();
+        stage<1> app::App::render();
+    }
+}

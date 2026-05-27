@@ -1,0 +1,21 @@
+# Checked-in async-profiler `collapsed` fixture for the
+# `topo profile trace --mode=async-profiler` e2e tests. async-profiler is
+# a native agent the user installs per platform; this fixture stands in
+# for its `-o collapsed` text so CTest never has to attach the agent.
+#
+# Format: Brendan-Gregg folded stack (frames root -> leaf, `;`-separated,
+# trailing integer = sample count) with async-profiler's `-t` extension —
+# the stack ROOT is the thread token `[<tid>] <thread-name>`. The
+# converter lifts the numeric tid into the per-event `tid` field, drops
+# the thread token from the stack, and groups samples by thread.
+# Comment lines (#) and blank lines are skipped.
+#
+# Same logical workload as jfr_sample.ndjson so the wall/alloc views are
+# comparable: thread main (tid=1) and worker-0 (tid=42).
+# Total samples: 4 + 2 + 2 + 3 + 1 = 12 across 5 unique stacks.
+# `geom/Mesh.compute` appears in 9 / 12 samples.
+[1] main;main/App.run;geom/Mesh.compute 4
+[1] main;main/App.run;geom/Mesh.compute;geom/Mesh.normalize 2
+[1] main;main/App.run;io/Writer.flush 2
+[42] worker-0;main/Pool.work;geom/Mesh.compute 3
+[42] worker-0;main/Pool.work;io/Writer.flush 1

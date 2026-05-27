@@ -1,0 +1,20 @@
+// Stage isolation violation: stage<1> method calls a stage<3> method,
+// skipping stage<2> entirely.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void load();
+        void transform();
+        void emit();
+    }
+
+    fn run {
+        stage<1> app::App::load();
+        stage<2> app::App::transform();
+        stage<3> app::App::emit();
+    }
+}

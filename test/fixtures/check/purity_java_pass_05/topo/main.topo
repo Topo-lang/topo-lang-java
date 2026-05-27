@@ -1,0 +1,21 @@
+// Symmetric compliant case for the single-line-body regression guard.
+// Same single-line method shape as purity_java_fail_05, but neither
+// parallel-stage method writes static state, so the (now correctly
+// scope-tracked) extractor must yield a clean PASS — i.e. the fix does
+// not over-flag pure single-line bodies.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void parse();
+        void audit();
+    }
+
+    fn run {
+        stage<1> app::App::parse();
+        stage<1> app::App::audit();
+    }
+}

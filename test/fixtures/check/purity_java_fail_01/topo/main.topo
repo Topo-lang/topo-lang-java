@@ -1,0 +1,19 @@
+// Purity violation: parallel stage method `compute` writes to a private
+// static field `counter`.  Both compute() and render() share stage<1>, so
+// they are parallel, and parallel stages must be pure.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void compute();
+        void render();
+    }
+
+    fn run {
+        stage<1> app::App::compute();
+        stage<1> app::App::render();
+    }
+}

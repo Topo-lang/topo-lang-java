@@ -1,0 +1,33 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "LiteralExpr",
+            "literalKind": "string",
+            "value": "Annot"
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [],
+      "qualifiedName": "Annot.toString",
+      "returnType": {
+        "nameParts": [
+          "String"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Annot"
+    }
+  ]
+}

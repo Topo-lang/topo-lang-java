@@ -1,0 +1,8 @@
+namespace app {
+  public:
+    type Calculator {
+      public:
+        integer add(integer a, integer b);
+        integer multiply(integer a, integer b);
+    }
+}

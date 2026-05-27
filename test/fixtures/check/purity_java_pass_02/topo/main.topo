@@ -1,0 +1,18 @@
+// Static fields exist BUT are only read locally — no writes inside parallel
+// stages.  Reads currently emit only warnings, not errors.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void compute();
+        void render();
+    }
+
+    fn run {
+        stage<1> app::App::compute();
+        stage<1> app::App::render();
+    }
+}

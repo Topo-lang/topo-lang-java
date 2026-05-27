@@ -1,0 +1,19 @@
+// Sequential stages — init() at stage<1>, finalize() at stage<2>.  Neither
+// shares a stage with another method, so neither is "parallel".  Static
+// writes are allowed.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void init();
+        void finalize();
+    }
+
+    fn run {
+        stage<1> app::App::init();
+        stage<2> app::App::finalize();
+    }
+}

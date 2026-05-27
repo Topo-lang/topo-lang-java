@@ -1,0 +1,12 @@
+[project]
+name = "containment_java_method_handle_define"
+
+[topo]
+root = "topo/main.topo"
+
+[build]
+language = "java"
+sources = ["src/*.java"]
+
+[containment]
+mode = "force"

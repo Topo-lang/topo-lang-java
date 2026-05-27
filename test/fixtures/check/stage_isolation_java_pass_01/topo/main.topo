@@ -1,0 +1,18 @@
+// init() at stage<1>, process() at stage<2>; neither method calls into the
+// other directly at the host level.  No cross-stage call edges, no violation.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void init();
+        void process();
+    }
+
+    fn run {
+        stage<1> app::App::init();
+        stage<2> app::App::process();
+    }
+}

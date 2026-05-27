@@ -1,0 +1,20 @@
+// Three parallel stage methods, each writing a distinct static field.
+// Expect three purity violations.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void alpha();
+        void beta();
+        void gamma();
+    }
+
+    fn run {
+        stage<1> app::App::alpha();
+        stage<1> app::App::beta();
+        stage<1> app::App::gamma();
+    }
+}

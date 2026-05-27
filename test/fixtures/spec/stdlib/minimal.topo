@@ -1,0 +1,35 @@
+// Java per-language fixture covering the 6 first-batch stdlib bridging
+// types (bool / i64 / f64 / string / optional<T> / slice<T>).
+//
+// Pairs with Boundary.java (matching signatures). Mapping verified by
+// JavaEmitter:
+//   bool        -> boolean
+//   i64         -> long
+//   f64         -> double
+//   string      -> String                  (UTF-16 internally; UTF-8↔UTF-16
+//                                           transcoding at the boundary is
+//                                           handled by dev.topo.StringBoundary)
+//   optional<T> -> Boxed<T>                (nullable; null == absent)
+//   slice<T>    -> java.util.List<Boxed<T>>(conservative: avoids Java 22+
+//                                           Panama MemorySegment dependency
+//                                           for Batch 1)
+//
+// `boundary` exercises every Batch-1 type in one signature, mirroring the
+// representative case for the per-language stdlib bridging suite.
+
+namespace stdlib_smoke {
+  public:
+    bool isReady();
+    i64 nextId();
+    f64 averageScore();
+    string label();
+    optional<bool> maybeFlag();
+    slice<f64> samples();
+
+    // All-types-in-one signature — acceptance case for the per-language
+    // stdlib bridging suite.
+    optional<i64> boundary(i64 id,
+                           string name,
+                           optional<bool> flags,
+                           slice<f64> values);
+}

@@ -1,0 +1,12 @@
+[project]
+name = "purity_java_fail_05"
+
+[topo]
+root = "topo/main.topo"
+
+[build]
+language = "java"
+sources = ["src/*.java"]
+
+[purity]
+mode = "force"

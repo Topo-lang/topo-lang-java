@@ -1,0 +1,234 @@
+# topo-lang-java/topo-check/analysis/catalog/JavaSafePatterns.toml
+# Java safety patterns whitelist -- community-maintained
+# Non-external functions may only use listed patterns.
+# Unlisted = unsafe by default.
+
+[version]
+schema = 1
+
+# Safe Java language constructs
+[constructs]
+safe = [
+    "if", "else", "for", "while", "do", "switch", "case", "default",
+    "break", "continue", "return",
+    "try", "catch", "throw", "finally",
+    "class", "interface", "enum", "record",
+    "sealed", "permits", "non-sealed",
+    "extends", "implements", "super", "this",
+    "new", "instanceof", "var",
+    "final", "static", "abstract",
+    "synchronized", "volatile",
+    "public", "protected", "private",
+    "void", "boolean", "byte", "short", "int", "long",
+    "float", "double", "char",
+    "import", "package",
+    "assert",
+    "yield",
+    "null", "true", "false",
+]
+
+unsafe = [
+    "native",
+    "sun.misc.Unsafe",
+]
+
+# Safe java.* symbols (for L2 LSP-resolved names)
+# Uses :: as separator (Topo internal convention).
+[stdlib]
+# Collections
+"java::util::List" = "safe"
+"java::util::ArrayList" = "safe"
+"java::util::LinkedList" = "safe"
+"java::util::Map" = "safe"
+"java::util::HashMap" = "safe"
+"java::util::LinkedHashMap" = "safe"
+"java::util::TreeMap" = "safe"
+"java::util::Set" = "safe"
+"java::util::HashSet" = "safe"
+"java::util::LinkedHashSet" = "safe"
+"java::util::TreeSet" = "safe"
+"java::util::Queue" = "safe"
+"java::util::Deque" = "safe"
+"java::util::ArrayDeque" = "safe"
+"java::util::PriorityQueue" = "safe"
+"java::util::EnumSet" = "safe"
+"java::util::EnumMap" = "safe"
+"java::util::Collections" = "safe"
+"java::util::Arrays" = "safe"
+"java::util::Iterator" = "safe"
+"java::util::ListIterator" = "safe"
+"java::util::Comparator" = "safe"
+
+# Optional
+"java::util::Optional" = "safe"
+"java::util::OptionalInt" = "safe"
+"java::util::OptionalLong" = "safe"
+"java::util::OptionalDouble" = "safe"
+
+# Streams
+"java::util::stream::Stream" = "safe"
+"java::util::stream::IntStream" = "safe"
+"java::util::stream::LongStream" = "safe"
+"java::util::stream::DoubleStream" = "safe"
+"java::util::stream::Collectors" = "safe"
+"java::util::stream::Collector" = "safe"
+"java::util::stream::StreamSupport" = "safe"
+
+# Strings
+"java::lang::String" = "safe"
+"java::lang::StringBuilder" = "safe"
+"java::lang::StringBuffer" = "safe"
+"java::lang::CharSequence" = "safe"
+
+# Boxed types
+"java::lang::Integer" = "safe"
+"java::lang::Long" = "safe"
+"java::lang::Double" = "safe"
+"java::lang::Float" = "safe"
+"java::lang::Boolean" = "safe"
+"java::lang::Byte" = "safe"
+"java::lang::Short" = "safe"
+"java::lang::Character" = "safe"
+"java::lang::Number" = "safe"
+"java::lang::Void" = "safe"
+
+# Math
+"java::lang::Math" = "safe"
+"java::lang::StrictMath" = "safe"
+"java::math::BigInteger" = "safe"
+"java::math::BigDecimal" = "safe"
+"java::math::MathContext" = "safe"
+"java::math::RoundingMode" = "safe"
+
+# Object fundamentals
+"java::lang::Object" = "safe"
+"java::lang::Class" = "safe"
+"java::lang::Enum" = "safe"
+"java::lang::Record" = "safe"
+"java::lang::Comparable" = "safe"
+"java::lang::Iterable" = "safe"
+"java::lang::AutoCloseable" = "safe"
+"java::lang::Cloneable" = "safe"
+
+# Functional interfaces
+"java::util::function::Function" = "safe"
+"java::util::function::BiFunction" = "safe"
+"java::util::function::Predicate" = "safe"
+"java::util::function::BiPredicate" = "safe"
+"java::util::function::Consumer" = "safe"
+"java::util::function::BiConsumer" = "safe"
+"java::util::function::Supplier" = "safe"
+"java::util::function::UnaryOperator" = "safe"
+"java::util::function::BinaryOperator" = "safe"
+"java::util::function::IntFunction" = "safe"
+"java::util::function::LongFunction" = "safe"
+"java::util::function::DoubleFunction" = "safe"
+"java::util::function::ToIntFunction" = "safe"
+"java::util::function::ToLongFunction" = "safe"
+"java::util::function::ToDoubleFunction" = "safe"
+"java::util::function::IntConsumer" = "safe"
+"java::util::function::LongConsumer" = "safe"
+"java::util::function::DoubleConsumer" = "safe"
+"java::util::function::IntSupplier" = "safe"
+"java::util::function::LongSupplier" = "safe"
+"java::util::function::DoubleSupplier" = "safe"
+"java::util::function::IntPredicate" = "safe"
+"java::util::function::LongPredicate" = "safe"
+"java::util::function::DoublePredicate" = "safe"
+"java::util::function::IntUnaryOperator" = "safe"
+"java::util::function::LongUnaryOperator" = "safe"
+"java::util::function::DoubleUnaryOperator" = "safe"
+"java::util::function::IntBinaryOperator" = "safe"
+"java::util::function::LongBinaryOperator" = "safe"
+"java::util::function::DoubleBinaryOperator" = "safe"
+
+# Time (no I/O)
+"java::time::LocalDate" = "safe"
+"java::time::LocalTime" = "safe"
+"java::time::LocalDateTime" = "safe"
+"java::time::Instant" = "safe"
+"java::time::Duration" = "safe"
+"java::time::Period" = "safe"
+"java::time::ZoneId" = "safe"
+"java::time::ZoneOffset" = "safe"
+"java::time::ZonedDateTime" = "safe"
+"java::time::OffsetDateTime" = "safe"
+"java::time::OffsetTime" = "safe"
+"java::time::MonthDay" = "safe"
+"java::time::YearMonth" = "safe"
+"java::time::Year" = "safe"
+"java::time::DayOfWeek" = "safe"
+"java::time::Month" = "safe"
+"java::time::Clock" = "safe"
+"java::time::format::DateTimeFormatter" = "safe"
+"java::time::temporal::ChronoUnit" = "safe"
+"java::time::temporal::ChronoField" = "safe"
+"java::time::temporal::TemporalAdjusters" = "safe"
+
+# Concurrent (in-memory coordination, no I/O)
+"java::util::concurrent::ConcurrentHashMap" = "safe"
+"java::util::concurrent::ConcurrentLinkedQueue" = "safe"
+"java::util::concurrent::ConcurrentLinkedDeque" = "safe"
+"java::util::concurrent::CopyOnWriteArrayList" = "safe"
+"java::util::concurrent::CopyOnWriteArraySet" = "safe"
+"java::util::concurrent::CompletableFuture" = "safe"
+"java::util::concurrent::Future" = "safe"
+"java::util::concurrent::ExecutorService" = "safe"
+"java::util::concurrent::Executors" = "safe"
+"java::util::concurrent::CountDownLatch" = "safe"
+"java::util::concurrent::CyclicBarrier" = "safe"
+"java::util::concurrent::Semaphore" = "safe"
+"java::util::concurrent::BlockingQueue" = "safe"
+"java::util::concurrent::LinkedBlockingQueue" = "safe"
+"java::util::concurrent::ArrayBlockingQueue" = "safe"
+"java::util::concurrent::atomic::AtomicInteger" = "safe"
+"java::util::concurrent::atomic::AtomicLong" = "safe"
+"java::util::concurrent::atomic::AtomicBoolean" = "safe"
+"java::util::concurrent::atomic::AtomicReference" = "safe"
+"java::util::concurrent::locks::ReentrantLock" = "safe"
+"java::util::concurrent::locks::ReadWriteLock" = "safe"
+"java::util::concurrent::locks::ReentrantReadWriteLock" = "safe"
+"java::util::concurrent::locks::StampedLock" = "safe"
+
+# Exceptions
+"java::lang::Exception" = "safe"
+"java::lang::RuntimeException" = "safe"
+"java::lang::IllegalArgumentException" = "safe"
+"java::lang::IllegalStateException" = "safe"
+"java::lang::NullPointerException" = "safe"
+"java::lang::IndexOutOfBoundsException" = "safe"
+"java::lang::UnsupportedOperationException" = "safe"
+"java::lang::ClassCastException" = "safe"
+"java::lang::ArithmeticException" = "safe"
+"java::lang::NumberFormatException" = "safe"
+"java::lang::StackOverflowError" = "safe"
+"java::lang::AssertionError" = "safe"
+
+# Regex (in-memory)
+"java::util::regex::Pattern" = "safe"
+"java::util::regex::Matcher" = "safe"
+
+# Random (in-memory)
+"java::util::Random" = "safe"
+"java::util::concurrent::ThreadLocalRandom" = "safe"
+"java::security::SecureRandom" = "safe"
+
+# Annotations
+"java::lang::Override" = "safe"
+"java::lang::Deprecated" = "safe"
+"java::lang::SuppressWarnings" = "safe"
+"java::lang::FunctionalInterface" = "safe"
+"java::lang::SafeVarargs" = "safe"
+
+# System (safe subset -- pure computation methods only)
+"java::lang::System::identityHashCode" = "safe"
+"java::lang::System::arraycopy" = "safe"
+"java::lang::System::currentTimeMillis" = "safe"
+"java::lang::System::nanoTime" = "safe"
+"java::lang::System::lineSeparator" = "safe"
+
+# Objects utility
+"java::util::Objects" = "safe"
+
+# Map.Entry
+"java::util::Map::Entry" = "safe"

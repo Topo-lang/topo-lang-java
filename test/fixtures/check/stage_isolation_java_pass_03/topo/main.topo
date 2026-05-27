@@ -1,0 +1,19 @@
+// Backward stage call: process() at stage<2> calls init() at stage<1>.
+// Backward calls are allowed; only forward (into a later stage) is a
+// violation.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void init();
+        void process();
+    }
+
+    fn run {
+        stage<1> app::App::init();
+        stage<2> app::App::process();
+    }
+}

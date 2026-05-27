@@ -1,0 +1,46 @@
+{
+  "functions": [
+    {
+      "body": [
+        {
+          "kind": "ReturnStmt",
+          "value": {
+            "kind": "MemberAccessExpr",
+            "member": "value",
+            "object": {
+              "kind": "VarRefExpr",
+              "name": "this"
+            }
+          }
+        }
+      ],
+      "fidelity": "source",
+      "params": [],
+      "qualifiedName": "Counter.getValue",
+      "returnType": {
+        "nameParts": [
+          "int"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [
+        {
+          "fidelity": "source",
+          "name": "value",
+          "type": {
+            "nameParts": [
+              "int"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Counter"
+    }
+  ]
+}

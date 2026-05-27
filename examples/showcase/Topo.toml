@@ -1,0 +1,79 @@
+[project]
+name = "showcase_java"
+
+[topo]
+root = "topo/session.topo"
+
+[build]
+language = "java"
+sources = ["src/main/java"]
+output = "showcase_java.jar"
+output_type = "exe"
+
+[build.java]
+target_version = "17"
+main_class = "pipeline.Main"
+
+[parallel]
+mode = "force"
+
+[lifetime]
+mode = "force"
+
+[observability]
+mode = "force"
+exporter = "stdout"
+
+[completeness]
+ignore_constructors = true
+ignore_destructors = true
+ignore_main = true
+ignore_patterns = [
+    # std::import type and members
+    "PipelineConfig",
+    "PipelineConfig::*",
+    "*::operator*",
+    # Organizational wrapper classes and all their qualified members.
+    # The JavaSymbolExtractor resolves methods under the enclosing class;
+    # these patterns suppress the class-qualified paths.
+    "pipeline::Main",
+    "pipeline::Main::*",
+    "pipeline::Types",
+    "pipeline::Types::*",
+    "pipeline::Pipeline",
+    "pipeline::Pipeline::*",
+    "pipeline::Session",
+    "pipeline::Session::*",
+    "pipeline::Metrics",
+    "pipeline::Metrics::*",
+    # Type declarations and their members (checked structurally)
+    "pipeline::Record",
+    "pipeline::Record::*",
+    "pipeline::Schema",
+    "pipeline::Schema::*",
+    "pipeline::Batch",
+    "pipeline::Batch::*",
+    "pipeline::DataSource",
+    "pipeline::DataSource::*",
+    "pipeline::FileSource",
+    "pipeline::FileSource::*",
+    "pipeline::Cache",
+    "pipeline::Cache::*",
+    "pipeline::Index",
+    "pipeline::Index::*",
+    "pipeline::PipelineConfig",
+    "pipeline::PipelineConfig::*",
+    # Nested namespace symbols — Java resolves Metrics methods at
+    # package level (pipeline::recordLatency) while .topo declares
+    # them under pipeline::metrics::recordLatency.
+    "pipeline::metrics",
+    "pipeline::metrics::*",
+    # Host-side bare names for nested namespace methods and static
+    # type methods that the extractor resolves without class/namespace
+    # qualifier.
+    "pipeline::recordLatency",
+    "pipeline::recordThroughput",
+    "pipeline::getP99Latency",
+    "pipeline::resetAll",
+    "pipeline::defaultSchema",
+]

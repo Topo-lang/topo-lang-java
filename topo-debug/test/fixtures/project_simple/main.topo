@@ -1,0 +1,37 @@
+// Java counterpart of topo-lang-cpp/topo-debug/test/fixtures/project_simple/main.topo.
+//
+// Declares a `Buf` debug entry with literal-bounded views `first_half` and
+// `second_half` over the host-side `data: int[]` array (length 8). The
+// matching Main.java puts the array on the stack with concrete values
+// {1,2,3,4,10,20,30,40} and breaks on a sentinel line so
+// `topo debug query 'sum(first_half)'` sees 1+2+3+4 = 10 and
+// `sum(second_half)` sees 10+20+30+40 = 100.
+//
+// Validates the full success path for the jvm backend: `topo build`
+// (via topo-build-jvm-java) compiles Main.java with javac `-g`, applies
+// bytecode transforms, packages the JAR, and writes main.topo-dbg.json
+// (the view registry) so `topo debug` auto-discovers it next to the
+// launcher and rewrites `first_half` -> `data[0..4]` before driving the
+// JDI adapter.
+
+using Int = std::java::int;
+
+namespace app {
+  public:
+    type Buf {
+      public:
+        Int data;
+    }
+}
+
+debug Buf {
+  view first_half from data[0..4];
+  view second_half from data[4..8];
+  // `{ <query-expr> }` placeholders are evaluated by the summary renderer
+  // against the breakpoint's frame. At the sentinel line in Main.java:
+  //   sum(data)        = 110  (1+2+3+4 + 10+20+30+40)
+  //   sum(first_half)  = 10
+  //   sum(second_half) = 100
+  //   count(data)      = 8
+  summary "data sum={sum(data)} (halves {sum(first_half)} + {sum(second_half)}; count={count(data)})";
+}

@@ -1,0 +1,24 @@
+// Multiple visibility violations: a consumer class calls TWO private
+// methods declared in `app::Lib` from outside the class.
+
+namespace app {
+  public:
+    void pipeline();
+
+    type Lib {
+      public:
+        void publicEntry();
+      private:
+        void alpha();
+        void beta();
+    }
+
+    type Consumer {
+      public:
+        void drive();
+    }
+
+    fn pipeline {
+        stage<1> app::Lib::publicEntry();
+    }
+}

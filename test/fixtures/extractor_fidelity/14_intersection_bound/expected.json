@@ -1,0 +1,39 @@
+{
+  "functions": [],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [
+        {
+          "fidelity": "source",
+          "name": "value",
+          "type": {
+            "nameParts": [
+              "T"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Sortable",
+      "templateParams": [
+        {
+          "bounds": [
+            {
+              "nameParts": [
+                "Comparable"
+              ]
+            },
+            {
+              "nameParts": [
+                "java.io.Serializable"
+              ]
+            }
+          ],
+          "kind": "type",
+          "name": "T"
+        }
+      ]
+    }
+  ]
+}

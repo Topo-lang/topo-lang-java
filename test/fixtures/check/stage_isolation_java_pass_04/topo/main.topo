@@ -1,0 +1,18 @@
+// stage_isolation mode=off — even a forward stage call passes because the
+// check is suppressed.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void init();
+        void process();
+    }
+
+    fn run {
+        stage<1> app::App::init();
+        stage<2> app::App::process();
+    }
+}

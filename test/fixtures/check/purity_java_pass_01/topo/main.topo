@@ -1,0 +1,18 @@
+// Pure parallel stage methods: no static state at all.
+// Both compute() and render() share stage<1> => parallel — they must be pure.
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void compute();
+        void render();
+    }
+
+    fn run {
+        stage<1> app::App::compute();
+        stage<1> app::App::render();
+    }
+}

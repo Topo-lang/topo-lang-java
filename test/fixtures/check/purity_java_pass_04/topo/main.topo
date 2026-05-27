@@ -1,0 +1,19 @@
+// Parallel stages reference final static constants only.  Final statics are
+// excluded from the global set in pass 1 (compiler prevents reassignment,
+// so they are never a parallel-purity hazard).
+
+namespace app {
+  public:
+    void run();
+
+    type App {
+      public:
+        void compute();
+        void render();
+    }
+
+    fn run {
+        stage<1> app::App::compute();
+        stage<1> app::App::render();
+    }
+}

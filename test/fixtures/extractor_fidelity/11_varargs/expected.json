@@ -1,0 +1,33 @@
+{
+  "functions": [
+    {
+      "body": [],
+      "fidelity": "source",
+      "params": [
+        {
+          "name": "nums",
+          "type": {
+            "nameParts": [
+              "int"
+            ]
+          }
+        }
+      ],
+      "qualifiedName": "Varargs.log",
+      "returnType": {
+        "nameParts": [
+          "void"
+        ]
+      },
+      "unsupported": []
+    }
+  ],
+  "runDegraded": false,
+  "types": [
+    {
+      "fidelity": "source",
+      "fields": [],
+      "qualifiedName": "Varargs"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+// Visibility violation: a deeply nested class violation.  `Storage`
+// declares a private `flushBuffers` method.  An external `Loader` class
+// in the same package calls it via qualified `app.Storage.flushBuffers()`.
+
+namespace app {
+  public:
+    void pipeline();
+
+    type Storage {
+      public:
+        void publicEntry();
+      private:
+        void flushBuffers();
+    }
+
+    type Loader {
+      public:
+        void load();
+    }
+
+    fn pipeline {
+        stage<1> app::Storage::publicEntry();
+    }
+}

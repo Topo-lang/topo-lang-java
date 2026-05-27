@@ -1,0 +1,4 @@
+namespace app {
+  public:
+    integer abort_via_var(integer code);
+}

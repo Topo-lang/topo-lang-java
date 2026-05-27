@@ -1,0 +1,4 @@
+namespace app {
+  public:
+    integer build_subclass(integer parent_id);
+}

@@ -1,0 +1,196 @@
+// types.topo — data pipeline type system
+//
+// Features demonstrated: using, std::import, constraint hierarchy,
+//           adapt, type (constructor, destructor, const, static,
+//           inheritance), template (constrained params), typefn,
+//           comptime fn, comptime if, instantiate, ownership
+
+using Int = std::java::int;
+using Boolean = std::java::boolean;
+using Double = std::java::double;
+using Long = std::java::long;
+using String = std::java::String;
+
+std::import("pipeline/PipelineConfig.java", PipelineConfig);
+
+namespace pipeline {
+
+  // -- Constraint hierarchy -----------------------------------------
+  // Validatable: data quality contracts
+  // Serializable: network transfer / persistence
+  // Indexable inherits Serializable: lookup requires storage
+
+  public:
+    constraint Validatable {
+        Boolean validate();
+        Int errorCount();
+    }
+
+    constraint Serializable {
+        Long serializedSize();
+        void serialize(Int dest);
+        Boolean deserialize(Int src);
+    }
+
+    constraint Indexable : Serializable {
+        Long indexKey();
+        Int compareKey(const Indexable& other);
+    }
+
+  // -- Core types ---------------------------------------------------
+
+  public:
+    type Record {
+      public:
+        explicit Record(Int schemaId);
+        Int fieldCount() const;
+        Int getField(Int index) const;
+        void setField(Int index, Int value);
+        Int schemaId() const;
+        Boolean isEmpty() const;
+      private:
+        Int schema;
+        Int count;
+    }
+
+    type Schema {
+      public:
+        explicit Schema(Int id);
+        Int fieldType(Int index) const;
+        Boolean accepts(const Record& record) const;
+        Int id() const;
+        static Schema defaultSchema();
+      private:
+        Int schemaId;
+        Int fieldCount;
+    }
+
+    type Batch {
+      public:
+        explicit Batch(Int capacity);
+        void add(const Record& record);
+        const Record& get(Int index) const;
+        Int size() const;
+        Boolean isFull() const;
+        void clear();
+      private:
+        Int count;
+        Int cap;
+    }
+
+  // -- Inheritance --------------------------------------------------
+
+  public:
+    type DataSource {
+      public:
+        Int read(Batch& batch);
+        Boolean hasMore() const;
+        Long bytesRead() const;
+    }
+
+    type FileSource : public DataSource {
+      public:
+        explicit FileSource(Int path);
+        Long fileSize() const;
+        Double progress() const;
+      private:
+        Int fd;
+        Long offset;
+    }
+
+  // -- Constraint adaptations ---------------------------------------
+
+  public:
+    adapt Validatable for Record {
+        validate = recordValidate;
+        errorCount = recordErrorCount;
+    }
+
+    adapt Serializable for Record {
+        serializedSize = recordSerializedSize;
+        serialize = recordSerialize;
+        deserialize = recordDeserialize;
+    }
+
+    adapt Indexable for Record {
+        indexKey = recordIndexKey;
+        compareKey = recordCompareKey;
+    }
+
+  // -- Constrained templates ----------------------------------------
+
+  public:
+    template<typename T : Serializable>
+    type Cache {
+      public:
+        Boolean get(Long key, T& out) const;
+        void put(Long key, const T& value);
+        void evict(Long key);
+        Int size() const;
+        void clear();
+      private:
+        Int count;
+        Int maxSize;
+    }
+
+    template<typename T : Indexable>
+    type Index {
+      public:
+        void insert(const T& item);
+        Boolean lookup(Long key, T& out) const;
+        void remove(Long key);
+        Int size() const;
+      private:
+        Int count;
+    }
+
+  // -- Template instantiations --------------------------------------
+
+  public:
+    instantiate Cache<Record>;
+    instantiate Index<Record>;
+
+  // -- Type function ------------------------------------------------
+
+  public:
+    typefn StorageType(typename T) -> typename {
+        match T {
+            Int => Long,
+            Double => Double,
+            _ => T
+        }
+    }
+
+  // -- Compile-time -------------------------------------------------
+
+  public:
+    comptime fn maxBatchSize(Int recordSize) -> Int { recordSize * 4096 }
+
+    comptime if (sizeof(Int) <= 4) {
+      void useCompactFormat();
+    } else {
+      void useWideFormat();
+    }
+
+  // -- Ownership modifiers ------------------------------------------
+
+  public:
+    void submitBatch(owned Batch batch);
+    Int queryCache(shared Cache<Record> cache, Long key);
+    Boolean checkSource(weak DataSource source);
+
+  // -- Constraint implementation functions --------------------------
+
+  protected:
+    Boolean recordValidate(Record& record);
+    Int recordErrorCount(const Record& record);
+    Long recordSerializedSize(const Record& record);
+    void recordSerialize(const Record& record, Int dest);
+    Boolean recordDeserialize(Record& record, Int src);
+    Long recordIndexKey(const Record& record);
+    Int recordCompareKey(const Record& a, const Record& b);
+
+  private:
+    void compactCache(Int threshold);
+    void rebuildIndexSegment(Int segmentId);
+}
