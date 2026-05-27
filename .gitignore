@@ -3,6 +3,10 @@
 /build-*/
 /out/
 /cmake-build-*/
+# Nested build/ dirs — Gradle subprojects (topo-check/extractor/,
+# topo-debug/, topo-profile/jfr-bridge/, runtime/) each generate their
+# own build/ under their root.
+build/
 
 # CMake
 CMakeCache.txt
