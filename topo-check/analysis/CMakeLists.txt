@@ -33,11 +33,13 @@ target_link_libraries(TopoJavaAnalysis
     PUBLIC topo::core::TopoCheck TopoJavaLSP
     PRIVATE topo::core::TopoPlatform)
 # TOPO_SOURCE_DIR is consulted by JavaSafePatterns.cpp for source-tree catalog
-# discovery (with runtime fallback when absent). In standalone mode it points
-# at the topo-lang-java source root; install-time consumers can override via
-# -DTOPO_SOURCE_DIR=<your-checkout-root>.
+# discovery (with runtime fallback when absent). Points one level above this
+# project — i.e. the meta-repo root that holds all topo-* clones as siblings
+# — so the catalog can find cross-clone fixtures. PROJECT_SOURCE_DIR (not
+# CMAKE_SOURCE_DIR) keeps this stable under dual-mode add_subdirectory().
+# Install-time consumers can override with -DTOPO_SOURCE_DIR=<root>.
 target_compile_definitions(TopoJavaAnalysis PRIVATE
-    TOPO_SOURCE_DIR="${CMAKE_SOURCE_DIR}/.."
+    TOPO_SOURCE_DIR="${PROJECT_SOURCE_DIR}/.."
 )
 topo_set_compiler_flags(TopoJavaAnalysis)
 

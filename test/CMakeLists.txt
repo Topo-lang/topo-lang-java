@@ -20,8 +20,8 @@ target_link_libraries(topo-lang-java-tests PRIVATE
     GTest::gtest_main
 )
 target_include_directories(topo-lang-java-tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/topo-check       # for analysis/stub/JavaStubGenerator.h
-    ${CMAKE_SOURCE_DIR}/topo-transpile   # for JavaEmitter.h
+    ${PROJECT_SOURCE_DIR}/topo-check       # for analysis/stub/JavaStubGenerator.h
+    ${PROJECT_SOURCE_DIR}/topo-transpile   # for JavaEmitter.h
 )
 topo_set_compiler_flags(topo-lang-java-tests)
 gtest_discover_tests(topo-lang-java-tests DISCOVERY_TIMEOUT 30
@@ -79,7 +79,7 @@ if(TOPO_HAS_JAVAC)
         GTest::gtest_main
     )
     target_include_directories(topo-lang-java-emitter-realjavac-tests PRIVATE
-        ${CMAKE_SOURCE_DIR}/topo-transpile
+        ${PROJECT_SOURCE_DIR}/topo-transpile
     )
     topo_set_compiler_flags(topo-lang-java-emitter-realjavac-tests)
     gtest_discover_tests(topo-lang-java-emitter-realjavac-tests DISCOVERY_TIMEOUT 30
@@ -97,7 +97,7 @@ endif()
 # .aidesk/live/40-issue/split-topo-lang-java-jvm-scope-deferred.md.
 if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
     set(_JAVA_EXTRACT_JAR
-        "${CMAKE_SOURCE_DIR}/topo-check/extractor/build/libs/topo-extract-java-0.1.0.jar"
+        "${PROJECT_SOURCE_DIR}/topo-check/extractor/build/libs/topo-extract-java-0.1.0.jar"
     )
     add_executable(topo-lang-java-extractor-fidelity-tests
         unit/JavaExtractorFidelityTest.cpp
@@ -114,7 +114,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
     topo_set_compiler_flags(topo-lang-java-extractor-fidelity-tests)
     gtest_discover_tests(topo-lang-java-extractor-fidelity-tests DISCOVERY_TIMEOUT 30
         PROPERTIES LABELS "toolchain;lang-java;fidelity" TIMEOUT 120
-        ENVIRONMENT "TOPO_EXTRACT_ROOT=${CMAKE_SOURCE_DIR}"
+        ENVIRONMENT "TOPO_EXTRACT_ROOT=${PROJECT_SOURCE_DIR}"
     )
 
     # Check E2E tests link TopoCheckRunner from topo-cli. When topo-cli's

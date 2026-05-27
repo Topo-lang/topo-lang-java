@@ -40,6 +40,10 @@ function(topo_set_llvm_flags target)
     topo_set_compiler_flags(${target})
 endfunction()
 
-function(topo_apply_std_pch target)
-    # PCH stub — no-op in standalone topo-lang-java.
-endfunction()
+# PCH stub — no-op in standalone topo-lang-java. Guarded so a parent
+# meta-repo that already provides a real topo_apply_std_pch wins.
+if(NOT COMMAND topo_apply_std_pch)
+    function(topo_apply_std_pch target)
+        # PCH stub — no-op in standalone topo-lang-java.
+    endfunction()
+endif()

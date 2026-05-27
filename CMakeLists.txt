@@ -25,8 +25,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(TopoLangJavaCompilerFlags)
 
 # ── Upstream Topo packages ────────────────────────────
-find_package(topo-core CONFIG REQUIRED)
-find_package(topo-lang CONFIG REQUIRED)
+# Dual-mode: when this clone is consumed via add_subdirectory() from a
+# parent meta-repo that already brought in topo-core / topo-lang, their
+# exported targets are already live — skip find_package() in that case.
+if(NOT TARGET topo::core::TopoBasic)
+    find_package(topo-core CONFIG REQUIRED)
+endif()
+if(NOT TARGET topo::lang::TopoLang)
+    find_package(topo-lang CONFIG REQUIRED)
+endif()
 
 # ── External dependencies ─────────────────────────────
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -207,7 +214,7 @@ endif()
 
 # ── Tests ─────────────────────────────────────────────
 option(TOPO_LANG_JAVA_BUILD_TESTS "Build topo-lang-java tests" ON)
-if(TOPO_LANG_JAVA_BUILD_TESTS AND PROJECT_IS_TOP_LEVEL)
+if(TOPO_LANG_JAVA_BUILD_TESTS AND (PROJECT_IS_TOP_LEVEL OR TOPO_META_DRIVING_TESTS))
     enable_testing()
     include(FetchContent)
     FetchContent_Declare(googletest
