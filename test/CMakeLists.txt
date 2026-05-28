@@ -93,8 +93,7 @@ endif()
 # Extractor golden-fidelity tests + checker E2E tests depend on the
 # Gradle-built topo-extract-java jar (JVM_BACKEND gate) and the checker
 # E2E binary additionally depends on TopoCheckRunner (owned by topo-cli,
-# resolved via optional find_package(topo-cli)). See
-# .aidesk/live/40-issue/split-topo-lang-java-jvm-scope-deferred.md.
+# resolved via optional find_package(topo-cli)).
 if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
     set(_JAVA_EXTRACT_JAR
         "${PROJECT_SOURCE_DIR}/topo-check/extractor/build/libs/topo-extract-java-0.1.0.jar"
