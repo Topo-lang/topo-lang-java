@@ -3,8 +3,8 @@ package dev.topo.config;
 /**
  * A config value whose type has no stdlib bridge was offered.
  *
- * <p>The message names the offending key and points at the
- * stdlib-bridging-types roadmap gap so the rejection is actionable (for
+ * <p>The message names the offending key and the stdlib-bridging-types
+ * gap so the rejection is actionable (for
  * example a TOML datetime: the time_* family is not yet a stdlib type, so
  * accepting it would mean a value with no schema contract). Silently keeping
  * such a value would leave the product reading something nothing in the schema

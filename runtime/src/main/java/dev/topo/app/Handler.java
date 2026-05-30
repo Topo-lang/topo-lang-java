@@ -4,7 +4,7 @@ import java.util.Objects;
 
 /**
  * A registered logic unit. {@code in} is {@code null} for a source handler
- * (no input — the zero-input form is legal, spec handler/flow §7a).
+ * (no input — the zero-input source-handler form is legal).
  */
 public final class Handler {
 

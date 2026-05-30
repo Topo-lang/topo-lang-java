@@ -8,8 +8,8 @@ Acceptance criterion:
 This is a documentation / manual smoke-level criterion (no code change
 required — verification is smoke-level only). It cannot be automated in
 CI (it requires a desktop IDE GUI and human interaction) and is **not
-verified in this headless environment** — see the tracked issue
-`ide-coexistence-jdwp-unverified` under the project issue directory.
+verified in this headless environment** — IDE/JDWP coexistence remains
+manually-verified-only until a desktop run confirms it.
 
 ## JDWP topology — why the procedure matters
 
@@ -125,5 +125,5 @@ B. The acceptance phrase "both debuggers attached to the same JVM" is
 satisfied in the sense that the *same JVM process* is debuggable by both
 tools without protocol conflict, not in the sense of two live JDWP
 connections on one socket. (If simultaneous multi-client is ever required,
-it needs a JDWP-proxy/multiplexer — out of scope for this adapter;
-recorded as a follow-up in the issue.)
+it needs a JDWP-proxy/multiplexer — out of scope for this adapter, left
+as a follow-up.)

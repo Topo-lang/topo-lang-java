@@ -10,7 +10,7 @@ import java.util.function.Supplier;
 /**
  * A topo-app program: the in-memory logic graph plus the callables.
  *
- * <p>The proposal fixes the philosophy (a handler is a pure In→Out Functor;
+ * <p>The topo-app design fixes the philosophy (a handler is a pure In→Out Functor;
  * a flow is a DAG of them) and leaves each host to project it onto its own
  * idioms. The Java projection is an explicit registration call. Java erases
  * generics, so In/Out cannot be recovered from a lambda's type the way the
@@ -75,7 +75,7 @@ public final class App {
      * Declare a linear logic chain: {@code flow("p", "a", "b", "c")} becomes
      * edges a→b→c→void. A {@link Parallel} stage fans in/out from the same
      * neighbours (same-source / same-sink == same-stage parallel candidates,
-     * per the proposal's mapping table).
+     * per the topo-app mapping table).
      */
     public void flow(String name, Object... stages) {
         if (stages.length == 0) {

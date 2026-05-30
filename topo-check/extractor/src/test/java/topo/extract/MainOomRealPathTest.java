@@ -17,8 +17,8 @@ import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * Real-path OOM regression for the {@code runDegraded} JSON-envelope
- * signal added by commit {@code af160d58} (issue
- * {@code topo-extract-java-oom-degradation-is-sticky-but-untested}).
+ * signal — proves the sticky OOM-degradation flag is actually exercised,
+ * not merely asserted by reflection.
  *
  * The sibling {@link MainDegradationTest} drives the static
  * {@code bindingResolutionDegraded} field via reflection — it pins the
@@ -89,7 +89,7 @@ class MainOomRealPathTest {
 
     @Test
     void realOomFlipsRunDegradedInJsonEnvelope(@TempDir Path tmp) throws Exception {
-        // CLAUDE.md skip semantics: report the reason explicitly so the
+        // Skip semantics: report the reason explicitly so the
         // skip is visible, not silent.
         String knob = System.getenv("TOPO_RUN_OOM_REAL_PATH");
         assumeTrue(knob != null && knob.equals("1"),

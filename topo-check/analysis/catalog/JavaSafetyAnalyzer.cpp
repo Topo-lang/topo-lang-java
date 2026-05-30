@@ -190,7 +190,7 @@ bool JavaSafetyAnalyzer::analyzeFile(const std::string& filePath,
     // Fetch the document outline once so every call site can be attributed
     // to its real enclosing method. Without this, the synthetic
     // `<l2:file:line>` placeholder breaks isExternalCaller() for every L2
-    // call site (see checker-l2-synthetic-caller-attribution.md).
+    // call site.
     auto docSymbols = bridge_.getDocumentSymbols(filePath);
 
     // 3. For each function/method call token, resolve and check

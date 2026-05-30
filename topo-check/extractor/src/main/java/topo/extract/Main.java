@@ -85,7 +85,6 @@ public class Main {
         // letting the binding-disabled fallback parse pass silently.
         // Always emitted (false on the happy path); a true value MUST
         // downgrade per-function fidelity and surface a CheckDiagnostic.
-        // Audit issue: topo-extract-java-oom-degradation-is-sticky-but-untested.
         module.addProperty("runDegraded", bindingResolutionDegraded);
         if (bindingResolutionDegraded) {
             module.addProperty("degradationReason",

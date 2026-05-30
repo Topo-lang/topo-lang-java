@@ -440,8 +440,8 @@ public final class Main {
      *      any embedded control character.
      *
      * On reject, writes the diagnostic to {@code err} and returns
-     * {@code null}. Audit issue:
-     * {@code topo-debug-java-spawns-subprocess-trusting-target-arg}.
+     * {@code null}, so the subprocess spawn never trusts an unvalidated
+     * {@code --target} argument.
      */
     static Path validateTarget(String target, List<Path> allowedRoots, StringBuilder err) {
         if (target == null || target.isEmpty()) {

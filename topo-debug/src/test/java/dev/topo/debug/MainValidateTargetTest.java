@@ -14,9 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Regression tests for {@code Main.validateTarget} — guards the
  * {@code --target} argument before {@code launchTarget} spawns a
- * subprocess.
- *
- * Audit issue: {@code topo-debug-java-spawns-subprocess-trusting-target-arg}.
+ * subprocess, so the spawn never trusts an unvalidated target.
  */
 class MainValidateTargetTest {
 

@@ -1,6 +1,6 @@
 // Purity violation via a SINGLE-LINE method body — regression guard for the
-// JavaSymbolAccessExtractor scope-leak fixed 2026-05-18 (see issue
-// puritycheck-flow-form-misses-violations-non-python-hosts).
+// JavaSymbolAccessExtractor scope-leak fixed 2026-05-18 (flow-form purity
+// check missed violations on non-Python hosts).
 //
 // `parse` has a compact one-line body `{ ... }`; before the fix its closing
 // `}` was consumed before the method was detected, so `inFunction` leaked

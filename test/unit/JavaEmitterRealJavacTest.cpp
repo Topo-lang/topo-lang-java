@@ -10,10 +10,11 @@
 // This file wires the emitter output through real `javac` so the
 // roundtrip "TranspileModule → JavaEmitter::emit → javac compile" is
 // asserted to *succeed*, not just to contain the right substrings.
-// When `javac` is not on PATH the tests SKIP with a stated reason per
-// CLAUDE.md skip semantics.
+// When `javac` is not on PATH the tests SKIP with a stated reason
+// (skips report their reason explicitly rather than passing silently).
 //
-// Issue: javaemitterstdlibtest-uses-synth-not-real-javac.
+// This closes the gap where the stdlib emitter test only checked output
+// against a synthesized compiler instead of a real `javac`.
 
 #include "JavaEmitter.h"
 #include "topo/Platform/Process.h"
@@ -35,9 +36,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
-/// Detect a usable `javac` on PATH. Per CLAUDE.md skip semantics the
-/// detection result feeds a GTest GTEST_SKIP() with a printed reason —
-/// never a silent pass, never a hard-fail.
+/// Detect a usable `javac` on PATH. The detection result feeds a GTest
+/// GTEST_SKIP() with a printed reason — never a silent pass, never a
+/// hard-fail.
 bool javacAvailable() {
     auto r = platform::runProcessCapture("javac", {"-version"}, /*verbose=*/false);
     return r.exitCode == 0;
@@ -156,8 +157,8 @@ TEST_F(JavaEmitterRealJavacFixture, VoidFunctionInNamespaceCompilesUnderJavac) {
 
 // ── Roundtrip 2.5: int free function with empty body compiles ──────
 //
-// Regression for issue `javaemitter-int-return-with-empty-body-rejected-by-
-// javac`. Before the empty-body zero-value-stub fix, `int compute() {}` was
+// Regression guard: an int return with an empty body must not be rejected by
+// javac. Before the empty-body zero-value-stub fix, `int compute() {}` was
 // emitted verbatim and javac rejected the output with "missing return
 // statement". The emitter now synthesises `return 0;` for any non-void
 // return whose body is empty; this case must stay GREEN.

@@ -25,7 +25,7 @@ public final class Config {
         this.app = app;
     }
 
-    /** The one {@code config(app)} entry the proposal names. */
+    /** The one {@code config(app)} entry the topo-app design names. */
     public static Config of(App app) {
         return new Config(app);
     }

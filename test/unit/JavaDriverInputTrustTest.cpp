@@ -1,6 +1,5 @@
-// Regression tests for JavaDriver's input-trust boundary helpers.
-//
-// Audit issue: javadriver-classpath-injection-unsanitised.
+// Regression tests for JavaDriver's input-trust boundary helpers — guards
+// against unsanitised classpath / argument injection.
 //
 // Verifies the validation helpers reject hostile values (NUL bytes,
 // control characters, JLS-invalid identifiers, manifest-injection

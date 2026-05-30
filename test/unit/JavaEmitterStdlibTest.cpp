@@ -43,8 +43,8 @@ static TypeNode stdlibScalar(stdlib::TypeId id) {
 /// constraintType / extraBounds / isVariadic / innerParams /
 /// defaultType / defaultValue / location); partial list-initialization
 /// silently picks up new fields. The helper keeps the "I want defaults"
-/// intent in one place — see issue
-/// `missing-field-initializer-warnings-in-test-fixtures`.
+/// intent in one place — avoiding missing-field-initializer warnings in
+/// the test fixtures.
 static TemplateParamDecl makeTypeParam(std::string name) {
     TemplateParamDecl tp;
     tp.kind = TemplateParamDecl::TypeParam;
@@ -601,9 +601,8 @@ TEST(JavaEmitterIdioms, SingleBoundEmitWithExtraBoundsEmptyByteIdentical) {
 // ---------------------------------------------------------------------------
 // Empty-body + non-void-return zero-value stub
 //
-// Regression for issue
-// `javaemitter-int-return-with-empty-body-rejected-by-javac`:
-// `int compute() {}` would ship past the emitter but javac then rejected the
+// Regression guard: an int return with an empty body must not be rejected
+// by javac. `int compute() {}` would ship past the emitter but javac then rejected the
 // roundtrip with "missing return statement". The emitter now synthesises a
 // zero-value `return <X>;` body (gated on empty `func.body` AND non-void
 // returnType), pairs it with an `unsupported` entry + a `// FIXME` inline

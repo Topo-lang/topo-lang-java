@@ -15,9 +15,8 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Regression tests for the {@code runDegraded} JSON envelope signal.
- *
- * Audit issue: {@code topo-extract-java-oom-degradation-is-sticky-but-untested}.
+ * Regression tests for the {@code runDegraded} JSON envelope signal —
+ * guards the sticky-but-previously-untested OOM-degradation flag.
  *
  * Strategy: drive {@link Main#main} with a stdin JSON request, capture
  * stdout, parse the emitted JSON, and assert the {@code runDegraded}

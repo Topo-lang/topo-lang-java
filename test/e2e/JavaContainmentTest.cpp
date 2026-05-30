@@ -15,8 +15,8 @@ static std::string fixtureDir(const char* name) {
 
 /// Fixture for L2 deep-mode tests.  These force cfg.deepMode = true so
 /// the JdtBridge + JavaSafetyAnalyzer path actually runs in CI —
-/// otherwise the existing L1 tests silently bypass every L2 bug (see
-/// checker-l2-synthetic-caller-attribution.md).  Tests skip themselves
+/// otherwise the existing L1 tests silently bypass every L2 bug (the
+/// L2 synthetic-caller attribution regression).  Tests skip themselves
 /// when jdtls is unavailable on PATH so unconfigured dev machines don't
 /// spuriously fail.
 class JavaContainmentL2 : public ::testing::Test {
@@ -203,7 +203,7 @@ TEST(JavaContainment, ContainmentJavaVarRuntime) {
 // JavaSafetyAnalyzer path actually runs through checkContainment.  The
 // existing tests above all exercise L1 only — without these, the
 // `<l2:file:line>` synthetic caller attribution bug can sneak back in
-// undetected.  See checker-l2-synthetic-caller-attribution.md.
+// undetected.
 
 TEST_F(JavaContainmentL2, ContainmentL2ExternalOk) {
     // external read_file() calls FileReader.close().  With correct
