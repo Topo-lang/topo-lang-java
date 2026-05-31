@@ -1,5 +1,6 @@
 #include "JavaEmitter.h"
 #include "topo/Stdlib/Types.h"
+#include <algorithm>
 #include <cctype>
 #include <functional>
 #include <map>
@@ -709,8 +710,20 @@ std::string JavaEmitter::emitFunction(const TranspileFunction& func, bool inClas
     for (const auto& u : func.unsupported)
         result += "// TOPO-TRANSPILE: unsupported — " + u + "\n";
     if (needsZeroValueStub) {
-        result += "// TOPO-TRANSPILE: unsupported — empty-body-stub: returnType=" +
-                  renderedReturn + "\n";
+        const std::string stubNote = "empty-body-stub: returnType=" + renderedReturn;
+        // Record the synthesised stub in the model's unsupported list so the
+        // post-transpile verifyModule() counts it — this is what drives the CLI's
+        // unsupported-construct warning and the --verify-max-unsupported gate. The
+        // stub is decided here at emit time, so the lifted model didn't carry it.
+        // const_cast is well-defined: both TranspileDriver call sites own a
+        // non-const module, and verifyModule runs after emit on that same object.
+        // Guarded so the comment + count appear exactly once even on a re-emit.
+        auto& mutFunc = const_cast<TranspileFunction&>(func);
+        if (std::find(mutFunc.unsupported.begin(), mutFunc.unsupported.end(),
+                      stubNote) == mutFunc.unsupported.end()) {
+            result += "// TOPO-TRANSPILE: unsupported — " + stubNote + "\n";
+            mutFunc.unsupported.push_back(stubNote);
+        }
     }
 
     auto [_, simpleName] = splitQualifiedName(func.qualifiedName);

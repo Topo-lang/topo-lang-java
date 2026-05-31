@@ -632,6 +632,31 @@ TEST(JavaEmitterEmptyBodyStub, IntReturnEmitsReturnZero) {
         << "fidelity should be downgraded from Source to Inferred:\n" << code;
 }
 
+// The synthesised stub is a lossy transpile event: it must register as an
+// unsupported construct so verifyModule() counts it — that count drives the
+// CLI's unsupported-construct warning and the --verify-max-unsupported gate.
+// Before the fix the stub left only a source comment, so a non-void function
+// that failed to transpile passed verification silently.
+TEST(JavaEmitterEmptyBodyStub, StubRegistersAsUnsupportedConstruct) {
+    TranspileModule mod;
+    TranspileFunction fn;
+    fn.qualifiedName = "compute";
+    fn.returnType = stdlibScalar(stdlib::TypeId::I32);
+    mod.functions.push_back(std::move(fn));
+
+    JavaEmitter emitter;
+    std::string code = emitter.emit(mod).code;
+    EXPECT_NE(code.find("return 0;"), std::string::npos) << code;
+
+    TranspileVerification v = verifyModule(mod);
+    EXPECT_EQ(v.totalUnsupported, 1)
+        << "empty-body stub must count as one unsupported construct";
+    ASSERT_EQ(v.perFunction.size(), 1u);
+    ASSERT_FALSE(v.perFunction[0].constructs.empty());
+    EXPECT_NE(v.perFunction[0].constructs.front().find("empty-body-stub"),
+              std::string::npos);
+}
+
 TEST(JavaEmitterEmptyBodyStub, LongReturnEmitsReturnZero) {
     std::string code = emitEmptyBodyFunctionReturning(
         stdlibScalar(stdlib::TypeId::I64));
