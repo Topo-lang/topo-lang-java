@@ -22,7 +22,7 @@ file(GLOB_RECURSE _DEBUG_JAVA_SRC CONFIGURE_DEPENDS
     ${_DEBUG_DIR}/src/main/java/*.java)
 add_custom_command(
     OUTPUT ${_DEBUG_JAR}
-    COMMAND ${_JAVA_GRADLE_ENV} ${TOPO_GRADLEW_CMD} jar
+    COMMAND ${_JAVA_GRADLE_ENV} ${TOPO_GRADLEW_CMD} jar ${_JAVA_GRADLE_EXTRA_ARGS}
     WORKING_DIRECTORY ${_DEBUG_DIR}
     DEPENDS ${_DEBUG_JAVA_SRC} ${_DEBUG_DIR}/build.gradle.kts
     COMMENT "Building topo-debug-java"
