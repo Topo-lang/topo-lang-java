@@ -84,6 +84,16 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
         set(_JAVA_GRADLE_ENV ${CMAKE_COMMAND} -E env)
     endif()
 
+    # Extra args appended to every CMake-driven Gradle invocation. Empty by
+    # default so a local build keeps the daemon (org.gradle.daemon=true in the
+    # subprojects' gradle.properties, defended there as the main local speed-up).
+    # CI sets "--no-daemon --console=plain": the daemon gives nothing on an
+    # ephemeral runner torn down after one build, and its cold bootstrap hangs
+    # the Windows benchmark leg. Mirrors topo-jvm's TOPO_JVM_GRADLE_ARGS.
+    set(TOPO_LANG_JAVA_GRADLE_ARGS "" CACHE STRING
+        "Extra args appended to every Gradle invocation (e.g. --no-daemon --console=plain)")
+    separate_arguments(_JAVA_GRADLE_EXTRA_ARGS NATIVE_COMMAND "${TOPO_LANG_JAVA_GRADLE_ARGS}")
+
     # Build topo-extract-java.jar via gradle.
     # Use --rerun-tasks=false (default) so Gradle's own up-to-date checks keep
     # configure-build incremental; the file-level DEPENDS captures the Java
@@ -94,7 +104,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
         ${_EXTRACT_DIR}/src/main/java/*.java)
     add_custom_command(
         OUTPUT ${_EXTRACT_JAR}
-        COMMAND ${_JAVA_GRADLE_ENV} ${TOPO_GRADLEW_CMD} jar
+        COMMAND ${_JAVA_GRADLE_ENV} ${TOPO_GRADLEW_CMD} jar ${_JAVA_GRADLE_EXTRA_ARGS}
         WORKING_DIRECTORY ${_EXTRACT_DIR}
         DEPENDS ${_EXTRACT_JAVA_SRC} ${_EXTRACT_DIR}/build.gradle.kts
         COMMENT "Building topo-extract-java"
@@ -108,7 +118,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
         ${_RUNTIME_DIR}/src/main/java/*.java)
     add_custom_command(
         OUTPUT ${_RUNTIME_JAR}
-        COMMAND ${_JAVA_GRADLE_ENV} ${TOPO_GRADLEW_CMD} jar
+        COMMAND ${_JAVA_GRADLE_ENV} ${TOPO_GRADLEW_CMD} jar ${_JAVA_GRADLE_EXTRA_ARGS}
         WORKING_DIRECTORY ${_RUNTIME_DIR}
         DEPENDS ${_RUNTIME_JAVA_SRC} ${_RUNTIME_DIR}/build.gradle.kts
         COMMENT "Building topo-runtime-java"
