@@ -156,6 +156,16 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
             }
         }
 
+        // The peak brace depth reached on this line. For a compact single-line
+        // body (`void f() { bar(); }`) the depth rises entering the body and
+        // falls closing it within one line; we remember the peak so the
+        // method-entry path can set `functionDepth` correctly even when the
+        // closing `}` is on the same line, and we defer the same-line scope
+        // exit until AFTER this line's call-scan so the body's calls are still
+        // attributed and `inFunction` does not leak into the next method.
+        int peakBraceDepth = braceDepth;
+        bool deferredFunctionExit = false;
+
         // Build effective line: strip comments, string/char literals, text-block markers.
         std::string effective;
         for (size_t i = 0; i < line.size(); ++i) {
@@ -213,6 +223,7 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
             // Track braces here for accurate scope state
             if (c == '{') {
                 ++braceDepth;
+                if (braceDepth > peakBraceDepth) peakBraceDepth = braceDepth;
             } else if (c == '}') {
                 --braceDepth;
                 if (braceDepth < 0) braceDepth = 0;
@@ -221,9 +232,10 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
                     classDepths.pop();
                 }
                 if (inFunction && braceDepth == functionDepth) {
-                    inFunction = false;
-                    functionDepth = -1;
-                    currentFunction.clear();
+                    // Defer the scope exit: the body statements on this same
+                    // line are scanned first, then the exit is applied at the
+                    // end of the iteration.
+                    deferredFunctionExit = true;
                 }
             }
 
@@ -248,13 +260,23 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
             continue;
         }
 
+        // Set true when the method body opens on THIS line: its statements
+        // (and, for a compact single-line body, its closing brace) are on this
+        // same line, so the line must be scanned regardless of where the
+        // post-loop `braceDepth` lands.
+        bool enteredFunctionThisLine = false;
+
         // Allman: pending method signature resolved on next line with `{`
         if (pendingSignature && !inFunction && effective.find('{') != std::string::npos) {
             inFunction = true;
-            functionDepth = braceDepth - 1;
+            // Use the peak depth so the entry depth is correct even when the
+            // matching `}` is on the same line and the brace loop already
+            // brought `braceDepth` back down.
+            functionDepth = peakBraceDepth - 1;
             currentFunction = pendingFunctionName;
             pendingSignature = false;
             pendingFunctionName.clear();
+            enteredFunctionThisLine = true;
         }
 
         // Detect method definition
@@ -275,8 +297,11 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
                     if (!isForwardDecl) {
                         if (hasBrace) {
                             inFunction = true;
-                            functionDepth = braceDepth - 1;
+                            // peak depth: correct even for a single-line body
+                            // whose closing `}` already decremented braceDepth.
+                            functionDepth = peakBraceDepth - 1;
                             currentFunction = mname;
+                            enteredFunctionThisLine = true;
                         } else {
                             pendingSignature = true;
                             pendingFunctionName = mname;
@@ -286,8 +311,20 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
             }
         }
 
-        // Inside a method body: scan for call targets.
-        if (inFunction && braceDepth > functionDepth) {
+        // A complete single-line body opens AND closes on this line: we just
+        // entered the method yet the running depth is already back at/below the
+        // opening depth. Schedule the scope-exit so it is applied after this
+        // line is scanned and `inFunction` does not leak into the next method.
+        if (enteredFunctionThisLine && braceDepth <= functionDepth) {
+            deferredFunctionExit = true;
+        }
+
+        // Inside a method body: scan for call targets. The running `braceDepth`
+        // is normally strictly deeper than the opening depth; the exception is
+        // a body that opens on this very line whose closing `}` is on the same
+        // line (`enteredFunctionThisLine`), where the depth may already have
+        // returned to/below `functionDepth`.
+        if (inFunction && (enteredFunctionThisLine || braceDepth > functionDepth)) {
             std::string callerName = buildQualified(packageName, classStack, currentFunction);
 
             // Iterate call-like tokens on the effective line.
@@ -325,12 +362,17 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
                     skip = true;
                 }
 
-                // Skip method call definitions (e.g. `void foo() {` produces a call-like
-                // match for `foo`).  By construction we've passed the open brace, but on
-                // a single-line definition `void foo() { return x(); }` the regex sees
-                // both `foo(` and `x(`. Filter the self-match.
-                if (!skip && simple == currentFunction && effective.find('{') != std::string::npos) {
-                    skip = true;
+                // Skip the method's own definition signature (e.g. `int foo() {`
+                // produces a call-like match for `foo`). Only the occurrence
+                // BEFORE the opening `{` is the signature; a same-named call
+                // AFTER the brace (a recursive call on a single-line body such
+                // as `int fib() { return fib(); }`) is a real edge and must be
+                // kept.
+                if (!skip && simple == currentFunction) {
+                    size_t bracePos = effective.find('{');
+                    if (bracePos != std::string::npos && matchPos < bracePos) {
+                        skip = true;
+                    }
                 }
 
                 // Skip `new Type(...)` constructor calls — preceded by `new `.
@@ -414,6 +456,15 @@ std::vector<CallEdge> JavaCallEdgeExtractor::extractCallEdges(const std::string&
                 remaining = remaining.substr(advance);
                 absOffset += advance;
             }
+        }
+
+        // Apply the deferred same-line method-scope-exit now that this line's
+        // body (open + calls + close on one line) has been scanned, so the
+        // next method is not misattributed.
+        if (deferredFunctionExit) {
+            inFunction = false;
+            functionDepth = -1;
+            currentFunction.clear();
         }
     }
 

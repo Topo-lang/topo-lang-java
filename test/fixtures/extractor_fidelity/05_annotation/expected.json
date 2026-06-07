@@ -3,10 +3,10 @@
     {
       "body": [
         {
-          "kind": "ReturnStmt",
+          "kind": "return",
           "value": {
-            "kind": "LiteralExpr",
-            "literalKind": "string",
+            "kind": "literal",
+            "litKind": "string",
             "value": "Annot"
           }
         }

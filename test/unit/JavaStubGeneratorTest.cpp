@@ -336,6 +336,64 @@ TEST_F(JavaStubGeneratorTest, StubMethodNotFound) {
     EXPECT_FALSE(result.error.empty());
 }
 
+// 25b. ReturnTypeDoesNotCrossPreviousMethod
+// A void method immediately precedes a non-void one. Return-type detection must
+// anchor to the CURRENT method's signature and not pick up the previous
+// method's `void` from its backward scan window.
+TEST_F(JavaStubGeneratorTest, ReturnTypeDoesNotCrossPreviousMethod) {
+    std::string src =
+        "public class S {\n"
+        "    public void alpha() { }\n"
+        "    public int beta() { return 1; }\n"
+        "}\n";
+    size_t bodyStart = JavaStubGenerator::findMethodBodyStart(src, "beta");
+    ASSERT_NE(bodyStart, std::string::npos);
+    // beta returns int — must NOT be misdetected as void (the leak the 500-char
+    // backward window caused).
+    EXPECT_FALSE(JavaStubGenerator::isVoidReturn(src, bodyStart));
+    EXPECT_TRUE(JavaStubGenerator::isPrimitiveReturn(src, bodyStart));
+}
+
+// 25c. StubNonVoidAfterVoidMethod
+// End-to-end: stubbing `beta` (int) right after a void `alpha` must produce the
+// int stub `{ return 0; }`, not the void stub `{ }`.
+TEST_F(JavaStubGeneratorTest, StubNonVoidAfterVoidMethod) {
+    std::string original =
+        "public class S {\n"
+        "    public void alpha() {\n"
+        "        doThing();\n"
+        "    }\n"
+        "    public int beta() {\n"
+        "        return 1;\n"
+        "    }\n"
+        "}\n";
+    auto path = writeTempFile("S.java", original);
+
+    JavaStubGenerator gen;
+    auto result = gen.stubFunction(path, "beta");
+    ASSERT_TRUE(result.success) << result.error;
+
+    std::string modified = readFileContent(path);
+    EXPECT_NE(modified.find("{ return 0; }"), std::string::npos)
+        << "Expected int stub '{ return 0; }' (not void) in:\n" << modified;
+}
+
+// 25d. ReturnTypeObjectAfterPrimitiveField
+// A primitive instance field precedes an object-returning method. The field's
+// `int` must not be read as the method's return type.
+TEST_F(JavaStubGeneratorTest, ReturnTypeObjectAfterPrimitiveField) {
+    std::string src =
+        "public class S {\n"
+        "    private int count;\n"
+        "    public String name() { return \"x\"; }\n"
+        "}\n";
+    size_t bodyStart = JavaStubGenerator::findMethodBodyStart(src, "name");
+    ASSERT_NE(bodyStart, std::string::npos);
+    EXPECT_FALSE(JavaStubGenerator::isVoidReturn(src, bodyStart));
+    EXPECT_FALSE(JavaStubGenerator::isBooleanReturn(src, bodyStart));
+    EXPECT_FALSE(JavaStubGenerator::isPrimitiveReturn(src, bodyStart));
+}
+
 // 26. StubNestedBraces
 TEST_F(JavaStubGeneratorTest, StubNestedBraces) {
     std::string original =

@@ -4,53 +4,53 @@
       "body": [
         {
           "condition": {
-            "kind": "BinaryOpExpr",
+            "kind": "binaryop",
             "lhs": {
-              "kind": "VarRefExpr",
+              "kind": "varref",
               "name": "n"
             },
-            "op": ">",
+            "op": "greater",
             "rhs": {
-              "kind": "LiteralExpr",
-              "literalKind": "int",
+              "kind": "literal",
+              "litKind": "integer",
               "value": "0"
             }
           },
           "elseBody": [
             {
               "condition": {
-                "kind": "BinaryOpExpr",
+                "kind": "binaryop",
                 "lhs": {
-                  "kind": "VarRefExpr",
+                  "kind": "varref",
                   "name": "n"
                 },
-                "op": "<",
+                "op": "less",
                 "rhs": {
-                  "kind": "LiteralExpr",
-                  "literalKind": "int",
+                  "kind": "literal",
+                  "litKind": "integer",
                   "value": "0"
                 }
               },
               "elseBody": [
                 {
-                  "kind": "ReturnStmt",
+                  "kind": "return",
                   "value": {
-                    "kind": "LiteralExpr",
-                    "literalKind": "int",
+                    "kind": "literal",
+                    "litKind": "integer",
                     "value": "0"
                   }
                 }
               ],
-              "kind": "IfStmt",
+              "kind": "if",
               "thenBody": [
                 {
-                  "kind": "ReturnStmt",
+                  "kind": "return",
                   "value": {
-                    "kind": "UnaryOpExpr",
-                    "op": "-",
+                    "kind": "unaryop",
+                    "op": "negate",
                     "operand": {
-                      "kind": "LiteralExpr",
-                      "literalKind": "int",
+                      "kind": "literal",
+                      "litKind": "integer",
                       "value": "1"
                     }
                   }
@@ -58,13 +58,13 @@
               ]
             }
           ],
-          "kind": "IfStmt",
+          "kind": "if",
           "thenBody": [
             {
-              "kind": "ReturnStmt",
+              "kind": "return",
               "value": {
-                "kind": "LiteralExpr",
-                "literalKind": "int",
+                "kind": "literal",
+                "litKind": "integer",
                 "value": "1"
               }
             }

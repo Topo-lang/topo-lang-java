@@ -3,12 +3,12 @@
     {
       "body": [
         {
-          "kind": "ReturnStmt",
+          "kind": "return",
           "value": {
-            "kind": "MemberAccessExpr",
+            "kind": "memberaccess",
             "member": "value",
             "object": {
-              "kind": "VarRefExpr",
+              "kind": "varref",
               "name": "this"
             }
           }

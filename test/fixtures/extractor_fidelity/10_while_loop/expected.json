@@ -4,11 +4,11 @@
       "body": [
         {
           "init": {
-            "kind": "LiteralExpr",
-            "literalKind": "int",
+            "kind": "literal",
+            "litKind": "integer",
             "value": "0"
           },
-          "kind": "VarDeclStmt",
+          "kind": "vardecl",
           "name": "s",
           "type": {
             "nameParts": [
@@ -19,44 +19,44 @@
         {
           "body": [
             {
-              "kind": "AssignStmt",
+              "kind": "assign",
               "target": {
-                "kind": "VarRefExpr",
+                "kind": "varref",
                 "name": "s"
               },
               "value": {
-                "kind": "BinaryOpExpr",
+                "kind": "binaryop",
                 "lhs": {
-                  "kind": "VarRefExpr",
+                  "kind": "varref",
                   "name": "s"
                 },
-                "op": "+",
+                "op": "add",
                 "rhs": {
-                  "kind": "LiteralExpr",
-                  "literalKind": "int",
+                  "kind": "literal",
+                  "litKind": "integer",
                   "value": "1"
                 }
               }
             }
           ],
           "condition": {
-            "kind": "BinaryOpExpr",
+            "kind": "binaryop",
             "lhs": {
-              "kind": "VarRefExpr",
+              "kind": "varref",
               "name": "s"
             },
-            "op": "<",
+            "op": "less",
             "rhs": {
-              "kind": "VarRefExpr",
+              "kind": "varref",
               "name": "n"
             }
           },
-          "kind": "WhileStmt"
+          "kind": "while"
         },
         {
-          "kind": "ReturnStmt",
+          "kind": "return",
           "value": {
-            "kind": "VarRefExpr",
+            "kind": "varref",
             "name": "s"
           }
         }

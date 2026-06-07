@@ -393,6 +393,15 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
         // Build effective line content (strip comments, strings, text blocks for brace tracking)
         std::string effective;
 
+        // Peak brace depth on this line + deferred same-line method exit. For a
+        // compact single-line body (`void f() { sock(); }`) the depth rises and
+        // falls within one line; remembering the peak lets the method-entry path
+        // set `functionDepth` correctly even when the closing `}` is on the same
+        // line, and deferring the exit keeps the body scannable without leaking
+        // `inFunction` into the next method.
+        int peakBraceDepth = braceDepth;
+        bool deferredFunctionExit = false;
+
         for (size_t i = 0; i < line.size(); ++i) {
             char c = line[i];
 
@@ -453,6 +462,7 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
             // Track braces
             if (c == '{') {
                 ++braceDepth;
+                if (braceDepth > peakBraceDepth) peakBraceDepth = braceDepth;
             } else if (c == '}') {
                 --braceDepth;
                 if (braceDepth < 0) braceDepth = 0;
@@ -461,11 +471,10 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
                     classStack.pop();
                     classDepths.pop();
                 }
-                // End function scope
+                // End function scope — deferred until after this line's call
+                // scan so a single-line body is still scanned and does not leak.
                 if (inFunction && braceDepth == functionDepth) {
-                    inFunction = false;
-                    functionDepth = -1;
-                    currentFunction.clear();
+                    deferredFunctionExit = true;
                 }
             }
 
@@ -506,6 +515,11 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
             continue;
         }
 
+        // Set true when the method body opens on THIS line; its statements
+        // (and a single-line body's closing brace) are on this same line, so
+        // the line must be scanned regardless of the post-loop `braceDepth`.
+        bool enteredFunctionThisLine = false;
+
         // Detect method definition (only at class scope, not inside a method)
         if (!inFunction) {
             std::smatch funcMatch;
@@ -515,8 +529,11 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
                     bool isConstructor = !classStack.empty() && fname == classStack.top();
                     if (!isConstructor && effective.find('{') != std::string::npos) {
                         inFunction = true;
-                        functionDepth = braceDepth - 1;
+                        // peak depth: correct even when the closing `}` is on
+                        // this same line (single-line body).
+                        functionDepth = peakBraceDepth - 1;
                         currentFunction = fname;
+                        enteredFunctionThisLine = true;
                     } else if (!isConstructor) {
                         currentFunction = fname;
                     }
@@ -528,8 +545,9 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
                     if (!isKeyword(ctorName) && ctorName == classStack.top()) {
                         if (effective.find('{') != std::string::npos) {
                             inFunction = true;
-                            functionDepth = braceDepth - 1;
+                            functionDepth = peakBraceDepth - 1;
                             currentFunction = ctorName;
+                            enteredFunctionThisLine = true;
                         }
                     }
                 }
@@ -538,12 +556,22 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
             // Handle method body starting on next line
             if (!inFunction && !currentFunction.empty() && effective.find('{') != std::string::npos) {
                 inFunction = true;
-                functionDepth = braceDepth - 1;
+                functionDepth = peakBraceDepth - 1;
+                enteredFunctionThisLine = true;
             }
         }
 
-        // Inside a method body: scan for API calls and escape patterns
-        if (inFunction && braceDepth > functionDepth) {
+        // A complete single-line body opens AND closes on this line: schedule
+        // the scope-exit so it is applied after the scan and does not leak.
+        if (enteredFunctionThisLine && braceDepth <= functionDepth) {
+            deferredFunctionExit = true;
+        }
+
+        // Inside a method body: scan for API calls and escape patterns. The
+        // running `braceDepth` is normally strictly deeper than the opening
+        // depth; the exception is a body opening on this very line whose
+        // closing `}` is on the same line (`enteredFunctionThisLine`).
+        if (inFunction && (enteredFunctionThisLine || braceDepth > functionDepth)) {
             std::string callerName = buildQualified(packageName, classStack, currentFunction);
 
             // Check constructor/factory API calls: new Socket(, FileWriter(, etc.
@@ -599,6 +627,14 @@ std::vector<DetectedCallSite> JavaCallSiteExtractor::extractCallSites(const std:
 
             // Scan for new escape patterns
             scanEscapePatterns(effective, callerName, lineNum);
+        }
+
+        // Apply the deferred same-line method-scope-exit now that this line's
+        // body has been scanned, so the next method is not misattributed.
+        if (deferredFunctionExit) {
+            inFunction = false;
+            functionDepth = -1;
+            currentFunction.clear();
         }
     }
 

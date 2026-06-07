@@ -141,6 +141,43 @@ std::string stripComments(const std::string& line, bool& inBlockComment, bool& i
             inTextBlock = true;
             break;
         }
+        // Regular string literal: copy through to the matching close quote so a
+        // comment marker INSIDE the string (`"http://x"`, `"/* x"`) does not
+        // truncate the line. maskStringLiterals (run after this) blanks the
+        // contents; here we only need to prevent comment detection inside it.
+        if (c == '"') {
+            out += c;
+            ++i;
+            while (i < line.size() && line[i] != '"') {
+                if (line[i] == '\\' && i + 1 < line.size()) {
+                    out += line[i];
+                    out += line[i + 1];
+                    i += 2;
+                    continue;
+                }
+                out += line[i];
+                ++i;
+            }
+            if (i < line.size()) out += line[i]; // closing quote
+            continue;
+        }
+        // Character literal: same rationale (`'/'`, `'"'`).
+        if (c == '\'') {
+            out += c;
+            ++i;
+            while (i < line.size() && line[i] != '\'') {
+                if (line[i] == '\\' && i + 1 < line.size()) {
+                    out += line[i];
+                    out += line[i + 1];
+                    i += 2;
+                    continue;
+                }
+                out += line[i];
+                ++i;
+            }
+            if (i < line.size()) out += line[i]; // closing quote
+            continue;
+        }
         out += c;
     }
     return out;

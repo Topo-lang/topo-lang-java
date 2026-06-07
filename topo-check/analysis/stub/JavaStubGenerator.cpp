@@ -97,12 +97,81 @@ bool isInsideStringOrComment(const std::string& source, size_t pos) {
     return inLineComment || inBlockComment || inString || inChar;
 }
 
-/// Extract the region before the method body to determine the return type.
-/// Returns the text from roughly the start of the method signature up to
-/// the opening brace.
+/// Find the start of the current method's signature: the position just after
+/// the nearest preceding statement/scope delimiter (`;`, `}`, or `{`) that is
+/// NOT inside a string/char literal or comment. Anchoring the return-type scan
+/// here keeps it from crossing into the PREVIOUS method's signature/body and
+/// picking up that method's return type (or a stray primitive/void keyword).
+size_t findSignatureStart(const std::string& source, size_t bodyStart) {
+    bool inLineComment = false;
+    bool inBlockComment = false;
+    bool inString = false;
+    bool inChar = false;
+    char prev = 0;
+    size_t sigStart = 0;
+
+    for (size_t i = 0; i < bodyStart && i < source.size(); ++i) {
+        char c = source[i];
+
+        if (inLineComment) {
+            if (c == '\n') inLineComment = false;
+            prev = c;
+            continue;
+        }
+        if (inBlockComment) {
+            if (prev == '*' && c == '/') inBlockComment = false;
+            prev = c;
+            continue;
+        }
+        if (inString) {
+            if (c == '"' && prev != '\\') inString = false;
+            prev = c;
+            continue;
+        }
+        if (inChar) {
+            if (c == '\'' && prev != '\\') inChar = false;
+            prev = c;
+            continue;
+        }
+
+        if (c == '/' && i + 1 < source.size() && source[i + 1] == '/') {
+            inLineComment = true;
+            prev = c;
+            continue;
+        }
+        if (c == '/' && i + 1 < source.size() && source[i + 1] == '*') {
+            inBlockComment = true;
+            prev = c;
+            continue;
+        }
+        if (c == '"') {
+            inString = true;
+            prev = c;
+            continue;
+        }
+        if (c == '\'') {
+            inChar = true;
+            prev = c;
+            continue;
+        }
+
+        // A code-level delimiter ends the previous declaration/scope; the
+        // current signature starts right after it.
+        if (c == ';' || c == '{' || c == '}') {
+            sigStart = i + 1;
+        }
+        prev = c;
+    }
+    return sigStart;
+}
+
+/// Extract the region holding the current method's signature, from the start
+/// of that signature up to its opening brace. Bounded at the previous
+/// statement/scope delimiter so return-type detection never crosses into an
+/// adjacent method.
 std::string extractReturnTypeRegion(const std::string& source, size_t bodyStart) {
-    size_t searchStart = (bodyStart > 500) ? (bodyStart - 500) : 0;
-    return source.substr(searchStart, bodyStart - searchStart);
+    size_t sigStart = findSignatureStart(source, bodyStart);
+    return source.substr(sigStart, bodyStart - sigStart);
 }
 
 /// Check if a word at `pos` of length `len` is a whole-word match in `region`.

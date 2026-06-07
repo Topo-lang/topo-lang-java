@@ -3,16 +3,16 @@
     {
       "body": [
         {
-          "kind": "ReturnStmt",
+          "kind": "return",
           "value": {
-            "kind": "BinaryOpExpr",
+            "kind": "binaryop",
             "lhs": {
-              "kind": "VarRefExpr",
+              "kind": "varref",
               "name": "a"
             },
-            "op": "+",
+            "op": "add",
             "rhs": {
-              "kind": "VarRefExpr",
+              "kind": "varref",
               "name": "b"
             }
           }

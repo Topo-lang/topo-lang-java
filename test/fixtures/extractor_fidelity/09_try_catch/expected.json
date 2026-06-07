@@ -3,8 +3,11 @@
     {
       "body": [
         {
-          "description": "try statement",
-          "kind": "UnsupportedExpr"
+          "expr": {
+            "description": "try statement",
+            "kind": "unsupported"
+          },
+          "kind": "exprstmt"
         }
       ],
       "fidelity": "source",

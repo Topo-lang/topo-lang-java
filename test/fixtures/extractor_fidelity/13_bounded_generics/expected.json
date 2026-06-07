@@ -3,9 +3,9 @@
     {
       "body": [
         {
-          "kind": "ReturnStmt",
+          "kind": "return",
           "value": {
-            "kind": "VarRefExpr",
+            "kind": "varref",
             "name": "a"
           }
         }
