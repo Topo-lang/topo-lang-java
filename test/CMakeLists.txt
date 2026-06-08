@@ -25,7 +25,7 @@ target_include_directories(topo-lang-java-tests PRIVATE
 )
 topo_set_compiler_flags(topo-lang-java-tests)
 gtest_discover_tests(topo-lang-java-tests DISCOVERY_TIMEOUT 30
-    PROPERTIES LABELS "toolchain;lang-java" TIMEOUT 60)
+    PROPERTIES LABELS "toolchain\;lang-java" TIMEOUT 60)
 
 # JavaDriver input-trust boundary tests — exercises validateClasspath /
 # validateMainClass / validateJavaHome rejects of hostile inputs.
@@ -39,7 +39,7 @@ target_link_libraries(topo-lang-java-driver-input-trust-tests PRIVATE
 )
 topo_set_compiler_flags(topo-lang-java-driver-input-trust-tests)
 gtest_discover_tests(topo-lang-java-driver-input-trust-tests DISCOVERY_TIMEOUT 30
-    PROPERTIES LABELS "toolchain;lang-java" TIMEOUT 30)
+    PROPERTIES LABELS "toolchain\;lang-java" TIMEOUT 30)
 
 # ── javac probe for the real-javac roundtrip test ────────────
 # Standalone build does not inherit topo-core's TopoToolProbes; probe locally.
@@ -83,7 +83,7 @@ if(TOPO_HAS_JAVAC)
     )
     topo_set_compiler_flags(topo-lang-java-emitter-realjavac-tests)
     gtest_discover_tests(topo-lang-java-emitter-realjavac-tests DISCOVERY_TIMEOUT 30
-        PROPERTIES LABELS "toolchain;lang-java;realpath" TIMEOUT 120)
+        PROPERTIES LABELS "toolchain\;lang-java\;realpath" TIMEOUT 120)
 else()
     message(STATUS "topo-lang-java-emitter-realjavac-tests: NOT built "
         "(TOPO_HAS_JAVAC=OFF; the JavaEmitter synth tests still run; "
@@ -112,7 +112,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
     add_dependencies(topo-lang-java-extractor-fidelity-tests topo-extract-java)
     topo_set_compiler_flags(topo-lang-java-extractor-fidelity-tests)
     gtest_discover_tests(topo-lang-java-extractor-fidelity-tests DISCOVERY_TIMEOUT 30
-        PROPERTIES LABELS "toolchain;lang-java;fidelity" TIMEOUT 120
+        PROPERTIES LABELS "toolchain\;lang-java\;fidelity" TIMEOUT 120
         ENVIRONMENT "TOPO_EXTRACT_ROOT=${PROJECT_SOURCE_DIR}"
     )
 
@@ -139,7 +139,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
         )
         topo_set_compiler_flags(topo-lang-java-check-tests)
         gtest_discover_tests(topo-lang-java-check-tests DISCOVERY_TIMEOUT 30
-            PROPERTIES LABELS "toolchain;checker;lang-java" TIMEOUT 60)
+            PROPERTIES LABELS "toolchain\;checker\;lang-java" TIMEOUT 60)
     else()
         message(STATUS "topo-lang-java-check-tests: NOT built — topo-cli "
             "config not on CMAKE_PREFIX_PATH (provides TopoCheckRunner). "
