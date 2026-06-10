@@ -11,6 +11,7 @@ endif()
 add_executable(topo-lang-java-tests
     unit/JavaStubGeneratorTest.cpp
     unit/JavaEmitterStdlibTest.cpp
+    unit/JavaAnalysisProviderTest.cpp
 )
 # TopoJavaAnalysis PUBLIC-propagates TopoJavaLSP → topo::core::TopoLSPBridge
 # → topo::core::TopoPlatform. TopoJavaTranspile brings in JavaEmitter
@@ -90,10 +91,8 @@ else()
         "install a JDK and reconfigure to enable the roundtrip suite)")
 endif()
 
-# Extractor golden-fidelity tests + checker E2E tests depend on the
-# Gradle-built topo-extract-java jar (JVM_BACKEND gate) and the checker
-# E2E binary additionally depends on TopoCheckRunner (owned by topo-cli,
-# resolved via optional find_package(topo-cli)).
+# Extractor golden-fidelity tests depend on the Gradle-built
+# topo-extract-java jar (JVM_BACKEND gate).
 if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
     set(_JAVA_EXTRACT_JAR
         "${PROJECT_SOURCE_DIR}/topo-check/extractor/build/libs/topo-extract-java-0.1.0.jar"
@@ -115,34 +114,41 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
         PROPERTIES LABELS "toolchain\;lang-java\;fidelity" TIMEOUT 120
         ENVIRONMENT "TOPO_EXTRACT_ROOT=${PROJECT_SOURCE_DIR}"
     )
+endif()
 
-    # Check E2E tests link TopoCheckRunner from topo-cli. When topo-cli's
-    # cmake config isn't on CMAKE_PREFIX_PATH the suite skips cleanly with
-    # a STATUS message; topo-core's eventual export of TopoCheckRunner will
-    # let us drop the topo-cli dependency entirely.
-    find_package(topo-cli CONFIG QUIET)
-    if(TARGET topo::cli::TopoCheckRunner)
-        add_executable(topo-lang-java-check-tests
-            e2e/TestMain.cpp
-            e2e/JavaCompletenessTest.cpp
-            e2e/JavaContainmentTest.cpp
-            e2e/JavaPurityTest.cpp
-            e2e/JavaVisibilityTest.cpp
-            e2e/JavaStageIsolationTest.cpp
-        )
-        target_link_libraries(topo-lang-java-check-tests PRIVATE
-            topo::cli::TopoCheckRunner TopoJavaPlugin
-            GTest::gtest
-        )
-        target_compile_definitions(topo-lang-java-check-tests PRIVATE
-            TOPO_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/check"
-        )
-        topo_set_compiler_flags(topo-lang-java-check-tests)
-        gtest_discover_tests(topo-lang-java-check-tests DISCOVERY_TIMEOUT 30
-            PROPERTIES LABELS "toolchain\;checker\;lang-java" TIMEOUT 60)
-    else()
-        message(STATUS "topo-lang-java-check-tests: NOT built — topo-cli "
-            "config not on CMAKE_PREFIX_PATH (provides TopoCheckRunner). "
-            "Install topo-cli and re-configure to enable.")
-    endif()
+# Check E2E tests link TopoCheckRunner from topo-cli. When topo-cli's
+# cmake config isn't on CMAKE_PREFIX_PATH the suite skips cleanly with
+# a STATUS message; topo-core's eventual export of TopoCheckRunner will
+# let us drop the topo-cli dependency entirely.
+# Deliberately OUTSIDE the JVM_BACKEND gate: the check pipeline uses the
+# in-process extractors plus JdtBridge (jdtls) — it never spawns the
+# Gradle-built topo-extract-java jar — so coupling it to the Gradle
+# toolchain only shrank where the suite could run (CI's verify-l2 job
+# builds it with just topo-cli on the prefix). TIMEOUT 180: each L2 deep
+# case boots its own jdtls instance, which dominates the 60s default on
+# CI runners.
+find_package(topo-cli CONFIG QUIET)
+if(TARGET topo::cli::TopoCheckRunner)
+    add_executable(topo-lang-java-check-tests
+        e2e/TestMain.cpp
+        e2e/JavaCompletenessTest.cpp
+        e2e/JavaContainmentTest.cpp
+        e2e/JavaPurityTest.cpp
+        e2e/JavaVisibilityTest.cpp
+        e2e/JavaStageIsolationTest.cpp
+    )
+    target_link_libraries(topo-lang-java-check-tests PRIVATE
+        topo::cli::TopoCheckRunner TopoJavaPlugin
+        GTest::gtest
+    )
+    target_compile_definitions(topo-lang-java-check-tests PRIVATE
+        TOPO_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/check"
+    )
+    topo_set_compiler_flags(topo-lang-java-check-tests)
+    gtest_discover_tests(topo-lang-java-check-tests DISCOVERY_TIMEOUT 30
+        PROPERTIES LABELS "toolchain\;checker\;lang-java" TIMEOUT 180)
+else()
+    message(STATUS "topo-lang-java-check-tests: NOT built — topo-cli "
+        "config not on CMAKE_PREFIX_PATH (provides TopoCheckRunner). "
+        "Install topo-cli and re-configure to enable.")
 endif()

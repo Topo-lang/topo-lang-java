@@ -53,22 +53,29 @@ std::vector<std::string> JavaAnalysisProvider::collectSourceFiles(
     const std::string& projectDir,
     const std::vector<std::string>& /*includeDirs*/) const {
     std::vector<std::string> files;
+    // Non-throwing scan (error_code construction + increment, same pattern
+    // as the C++ provider and CheckRunner::discoverRelevantFiles): a source
+    // root that is unexpectedly a plain file, unreadable, or vanishing must
+    // degrade to skipping it, never abort the checker.
+    auto scanDir = [&files](const fs::path& root) {
+        std::error_code ec;
+        if (fs::is_regular_file(root, ec)) {
+            if (root.extension() == ".java") files.push_back(root.string());
+            return;
+        }
+        if (!fs::exists(root, ec)) return;
+        fs::recursive_directory_iterator it(root, ec);
+        if (ec) return;
+        for (; it != fs::recursive_directory_iterator(); it.increment(ec)) {
+            if (ec) break;
+            if (it->path().extension() == ".java")
+                files.push_back(it->path().string());
+        }
+    };
     // Scan src/main/java (standard Maven/Gradle layout)
-    fs::path mavenSrc = fs::path(projectDir) / "src" / "main" / "java";
-    if (fs::exists(mavenSrc)) {
-        for (const auto& entry : fs::recursive_directory_iterator(mavenSrc)) {
-            if (entry.path().extension() == ".java")
-                files.push_back(entry.path().string());
-        }
-    }
+    scanDir(fs::path(projectDir) / "src" / "main" / "java");
     // Also check flat src/ directory
-    fs::path flatSrc = fs::path(projectDir) / "src";
-    if (fs::exists(flatSrc)) {
-        for (const auto& entry : fs::recursive_directory_iterator(flatSrc)) {
-            if (entry.path().extension() == ".java")
-                files.push_back(entry.path().string());
-        }
-    }
+    scanDir(fs::path(projectDir) / "src");
     // Deduplicate (maven path is inside flat src/)
     std::sort(files.begin(), files.end());
     files.erase(std::unique(files.begin(), files.end()), files.end());

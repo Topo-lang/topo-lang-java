@@ -12,3 +12,11 @@ output_type = "exe"
 
 [builder]
 mode = "dev"
+
+[completeness]
+# `Main` is the fixture's organizational entry-point wrapper — the .topo
+# intentionally declares only the debug-view anchor type (`TwoArrays`), not
+# the host class. Suppress it from symbol-level completeness matching (same
+# pattern as the quickstart's OrderProcessor wrapper) so the fixture stays
+# check-clean now that every `topo build` runs topo-check by default.
+ignore_patterns = ["Main", "Main::*"]
