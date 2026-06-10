@@ -200,11 +200,14 @@ jobs:
       - name: Install build deps (linux)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
 
-      - name: Set up JDK 17 (jdtls launch + real-javac roundtrip suite)
+      # JDK 21: the pinned jdtls milestone hard-requires Java >= 21 at
+      # launch ("jdtls requires at least Java 21"); javac 21 also serves
+      # the real-javac roundtrip fixtures.
+      - name: Set up JDK 21 (jdtls launch + real-javac roundtrip suite)
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       # jdtls (Eclipse JDT Language Server) — no apt package; use a PINNED
       # milestone tarball (the -latest snapshot is a moving, unverifiable
