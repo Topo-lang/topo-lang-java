@@ -1,6 +1,5 @@
 #include "JdtBridge.h"
 
-#include "topo/Platform/Platform.h"
 #include "topo/Platform/TempFile.h"
 
 #include <cstdlib>
@@ -97,12 +96,15 @@ bool JdtBridge::start(const std::string& rootUri) {
 }
 
 bool JdtBridge::start(const std::string& jdtPath, const std::string& rootUri) {
-    namespace plat = topo::platform;
-
     std::string exe = jdtPath;
     if (exe.empty()) {
-        // Try common names for Eclipse JDT Language Server
-        exe = "jdtls" + std::string(plat::ExeSuffix);
+        // Common name for the Eclipse JDT Language Server. Bare name, no
+        // ExeSuffix: jdtls ships a Python launcher script plus `jdtls.bat`
+        // on Windows — there is no `jdtls.exe`, so appending ".exe"
+        // guaranteed a miss. The platform spawn layer resolves bare names on
+        // PATH probing .exe/.cmd/.bat and routes batch launchers through
+        // cmd.exe.
+        exe = "jdtls";
     }
 
     // Pin jdtls to a project-unique workspace data directory. See
