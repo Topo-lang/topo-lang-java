@@ -29,10 +29,12 @@ const std::regex classRegex(
 
 // Method signature — modifiers + return type + method name + open paren.
 // This is intentionally broad: it matches lines that look like method declarations.
-// The return type is captured as a group of type tokens, the method name as the last
-// identifier before '('.
+// Captures: (1) the return-type token group, (2) the method name. The type group
+// also matches pure whitespace, which is what lets package-private constructors
+// (`Main(int v) {`) match — and what lets statement keywords leak into it
+// (see prefixHasStatementKeyword below).
 const std::regex methodRegex(
-    R"(^\s*(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)\s+)*(?:[\w<>\[\],\s?]+)\s+(\w+)\s*\()");
+    R"(^\s*(?:(?:public|private|protected|static|final|abstract|synchronized|native|default|strictfp)\s+)*([\w<>\[\],\s?]+)\s+(\w+)\s*\()");
 
 // Access modifier on a line (used to detect per-method visibility).
 const std::regex accessModRegex(R"(\b(public|private|protected)\b)");
@@ -126,6 +128,123 @@ bool isCommentOrBlank(const std::string& line) {
     if (line[pos] == '*') return true;            // block-comment continuation line
     if (pos + 1 < line.size() && line[pos] == '/' && line[pos + 1] == '/') return true;
     return false;
+}
+
+/// Reject statement-shaped methodRegex matches: `throw new X(...)`,
+/// `return new X(...)`, and statement-start `new X(...)` all satisfy the
+/// regex (the type group absorbs the keywords), capturing the class name
+/// as a method. Scans [0, nameBegin) as whole-word tokens; every word
+/// below is reserved/restricted in Java, so none can be a type name or
+/// modifier preceding a real declaration — while whole-word matching
+/// keeps keyword-substring names (renewLease, newCount, caseLabel) safe.
+bool prefixHasStatementKeyword(const std::string& line, size_t nameBegin) {
+    static const std::vector<std::string> stmtKeywords = {
+        "throw", "return", "new", "yield", "assert", "case", "else"
+    };
+    size_t i = 0;
+    while (i < nameBegin) {
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        if (std::isalnum(c) || line[i] == '_') {
+            size_t start = i;
+            while (i < nameBegin) {
+                unsigned char w = static_cast<unsigned char>(line[i]);
+                if (!std::isalnum(w) && line[i] != '_') break;
+                ++i;
+            }
+            const std::string token = line.substr(start, i - start);
+            for (const auto& kw : stmtKeywords) {
+                if (token == kw) return true;
+            }
+        } else {
+            ++i;
+        }
+    }
+    return false;
+}
+
+/// Map a Java source type token to the alias name generated `.topo`
+/// projects bind (`using Int = std::java::int;` ...). Unmapped types
+/// (float, char, generics, user classes, ...) pass through verbatim —
+/// consumers that render declarations must treat non-alias names as an
+/// explicit degradation case rather than emit unresolvable types.
+std::string mapJavaType(const std::string& javaType) {
+    if (javaType == "int") return "Int";
+    if (javaType == "boolean") return "Boolean";
+    if (javaType == "long") return "Long";
+    if (javaType == "double") return "Double";
+    return javaType; // "String" already names its alias; rest pass through
+}
+
+/// Trim ASCII whitespace from both ends.
+std::string trimWs(const std::string& s) {
+    size_t b = s.find_first_not_of(" \t");
+    if (b == std::string::npos) return "";
+    size_t e = s.find_last_not_of(" \t");
+    return s.substr(b, e - b + 1);
+}
+
+/// Parse the same-line parameter list starting at `parenPos` ('(').
+/// Splits on commas at angle/paren depth 0, strips `final` and leading
+/// annotations, drops the trailing parameter name, and maps each type
+/// through mapJavaType. A signature whose ')' is not on this line
+/// (multi-line parameter list) degrades to an empty list — the
+/// pre-capture behavior — rather than guess at a partial list.
+std::vector<std::string> parseParamTypes(const std::string& line, size_t parenPos) {
+    int depth = 0;
+    size_t closePos = std::string::npos;
+    for (size_t i = parenPos + 1; i < line.size(); ++i) {
+        char c = line[i];
+        if (c == '(' || c == '<') ++depth;
+        else if (c == '>') --depth;
+        else if (c == ')') {
+            if (depth == 0) { closePos = i; break; }
+            --depth;
+        }
+    }
+    if (closePos == std::string::npos) return {};
+
+    std::vector<std::string> parts;
+    {
+        std::string current;
+        int splitDepth = 0;
+        for (size_t i = parenPos + 1; i < closePos; ++i) {
+            char c = line[i];
+            if (c == '<' || c == '(') ++splitDepth;
+            else if (c == '>' || c == ')') --splitDepth;
+            else if (c == ',' && splitDepth == 0) {
+                parts.push_back(current);
+                current.clear();
+                continue;
+            }
+            current += c;
+        }
+        if (!trimWs(current).empty()) parts.push_back(current);
+    }
+
+    std::vector<std::string> types;
+    for (auto& part : parts) {
+        std::string p = trimWs(part);
+        // Strip leading annotations (@Nullable ...) and the final modifier.
+        while (!p.empty() && p[0] == '@') {
+            size_t sp = p.find_first_of(" \t");
+            if (sp == std::string::npos) { p.clear(); break; }
+            p = trimWs(p.substr(sp + 1));
+        }
+        const std::string finalKw = "final ";
+        if (p.compare(0, finalKw.size(), finalKw) == 0) {
+            p = trimWs(p.substr(finalKw.size()));
+        }
+        if (p.empty()) continue;
+        // The last whitespace-separated token is the parameter name;
+        // everything before it is the type.
+        size_t lastWs = p.find_last_of(" \t");
+        std::string type = (lastWs == std::string::npos)
+            ? p
+            : trimWs(p.substr(0, lastWs));
+        if (type.empty()) continue;
+        types.push_back(mapJavaType(type));
+    }
+    return types;
 }
 
 } // anonymous namespace
@@ -264,16 +383,25 @@ std::vector<HostSymbol> JavaSymbolExtractor::extractSymbols(const std::string& f
             if (!isAnnotationLine) {
                 std::smatch methMatch;
                 if (std::regex_search(line, methMatch, methodRegex)) {
-                    std::string methodName = methMatch[1].str();
+                    std::string methodName = methMatch[2].str();
 
-                    // Skip common false positives: control flow keywords
+                    // Skip common false positives: control flow keywords,
+                    // plus constructor delegation (`super(...)`/`this(...)`,
+                    // which match via the whitespace-only type group).
                     static const std::vector<std::string> falsePositives = {
                         "if", "else", "while", "for", "switch", "catch", "return",
-                        "throw", "new", "try", "do", "assert"
+                        "throw", "new", "try", "do", "assert", "super", "this"
                     };
                     bool isFalse = false;
                     for (const auto& fp : falsePositives) {
                         if (methodName == fp) { isFalse = true; break; }
+                    }
+                    // Statement-shaped lines (`throw new X(...)`) capture the
+                    // class name, so the name-only filter above cannot see
+                    // them — reject on any statement keyword in the prefix.
+                    if (!isFalse && prefixHasStatementKeyword(
+                            line, static_cast<size_t>(methMatch.position(2)))) {
+                        isFalse = true;
                     }
 
                     if (!isFalse) {
@@ -313,6 +441,22 @@ std::vector<HostSymbol> JavaSymbolExtractor::extractSymbols(const std::string& f
                             } else {
                                 sym.kind = HostSymbolKind::Method;
                             }
+                            // Return type from the captured type group;
+                            // `void` stays empty (renders as void downstream).
+                            std::string retType = trimWs(methMatch[1].str());
+                            if (retType != "void") {
+                                sym.returnType = mapJavaType(retType);
+                            }
+                        }
+
+                        // Parameter types from the same-line list — keeps
+                        // the declared/found parameter counts in agreement
+                        // for consumers that verify arity (e.g. bytecode
+                        // signature checks on generated projects).
+                        size_t parenPos = line.find(
+                            '(', static_cast<size_t>(methMatch.position(2)));
+                        if (parenPos != std::string::npos) {
+                            sym.paramTypes = parseParamTypes(line, parenPos);
                         }
 
                         // Detect visibility

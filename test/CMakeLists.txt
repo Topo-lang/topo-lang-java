@@ -12,6 +12,7 @@ add_executable(topo-lang-java-tests
     unit/JavaStubGeneratorTest.cpp
     unit/JavaEmitterStdlibTest.cpp
     unit/JavaAnalysisProviderTest.cpp
+    unit/JavaSymbolExtractorTest.cpp
 )
 # TopoJavaAnalysis PUBLIC-propagates TopoJavaLSP → topo::core::TopoLSPBridge
 # → topo::core::TopoPlatform. TopoJavaTranspile brings in JavaEmitter
