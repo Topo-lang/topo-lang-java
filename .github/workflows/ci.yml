@@ -345,27 +345,14 @@ jobs:
 
       # The checker suite passes ctest even when its gtest cases
       # GTEST_SKIP() (jdtls absent) — "Passed" can mean "every L2 case
-      # skipped". Re-run the binary and FAIL on any skip or zero passes,
-      # converting a silent all-skip into a hard failure (skip != pass).
+      # skipped". Re-run the binary and FAIL on any skip or zero passes
+      # (strict mode), and additionally require the named jdtls-backed
+      # L2 cases in the PASSED set — count-only guards go vacuously
+      # green when a live case is renamed or filtered out. Renaming one
+      # of the listed tests therefore reddens this step until the list
+      # is updated; that is the intended contract.
       - name: Assert L2 deep containment ran (skip != pass)
         run: |
-          # set +e: handle errors explicitly — a grep no-match inside a
-          # command substitution would otherwise abort the step silently.
-          set +e
-          exe=$(find build -type f -name "topo-lang-java-check-tests" 2>/dev/null | head -1)
-          if [ -z "${exe}" ]; then
-            echo "::error::topo-lang-java-check-tests not built — topo-cli prefix missing at configure time?"; exit 1
-          fi
-          out=$("${exe}" 2>&1); rc=$?
-          printf '%s\n' "${out}" | tail -20
-          passed=$(printf '%s\n' "${out}" | grep -oE '\[  PASSED  \] [0-9]+ test' | grep -oE '[0-9]+' | tail -1)
-          skipped=$(printf '%s\n' "${out}" | grep -oE '\[  SKIPPED \] [0-9]+ test' | grep -oE '[0-9]+' | tail -1)
-          [ -z "${passed}" ] && passed=0
-          [ -z "${skipped}" ] && skipped=0
-          echo "topo-lang-java-check-tests: ${passed} PASSED, ${skipped} skipped (exit ${rc})"
-          if [ "${rc}" -ne 0 ]; then
-            echo "::error::checker-e2e suite failed (exit ${rc})"; exit 1
-          fi
-          if [ "${skipped}" -gt 0 ] || [ "${passed}" -lt 1 ]; then
-            echo "::error::L2 deep containment did not RUN (jdtls missing → GTEST_SKIP; skip != pass)"; exit 1
-          fi
+          bash .github/scripts/assert-live-cases.sh strict topo-lang-java-check-tests \
+            JavaContainmentL2.ContainmentL2ExternalOk \
+            JavaContainmentL2.ContainmentL2RuntimeExec
