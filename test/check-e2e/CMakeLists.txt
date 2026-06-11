@@ -41,7 +41,10 @@ if(NOT TARGET topo::cli::TopoCheckRunner)
 endif()
 
 # Sources and fixtures stay under test/ — only the registration moved.
+# Paths derive from this file's location, not PROJECT_SOURCE_DIR, so
+# they stay correct when an embedding super-build adds this directory.
 get_filename_component(_test_root ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+get_filename_component(_repo_root ${_test_root} DIRECTORY)
 
 # TIMEOUT 180: each L2 deep case boots its own jdtls instance, which
 # dominates the 60s default on CI runners.
@@ -52,6 +55,7 @@ add_executable(topo-lang-java-check-tests
     ${_test_root}/e2e/JavaPurityTest.cpp
     ${_test_root}/e2e/JavaVisibilityTest.cpp
     ${_test_root}/e2e/JavaStageIsolationTest.cpp
+    ${_test_root}/e2e/JavaShowcaseTest.cpp
 )
 target_link_libraries(topo-lang-java-check-tests PRIVATE
     topo::cli::TopoCheckRunner TopoJavaPlugin
@@ -59,6 +63,7 @@ target_link_libraries(topo-lang-java-check-tests PRIVATE
 )
 target_compile_definitions(topo-lang-java-check-tests PRIVATE
     TOPO_TEST_FIXTURES_DIR="${_test_root}/fixtures/check"
+    TOPO_EXAMPLES_DIR="${_repo_root}/examples"
 )
 topo_set_compiler_flags(topo-lang-java-check-tests)
 gtest_discover_tests(topo-lang-java-check-tests DISCOVERY_TIMEOUT 30
