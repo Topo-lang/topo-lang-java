@@ -128,6 +128,16 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 120
 
+      # First CI surface for the runtime's Toolchain locator suite —
+      # the ctest step above never runs Gradle. Scoped --tests filter:
+      # VerticalSliceTest needs a real topo-check binary, which this
+      # job does not build. The foojay resolver (settings.gradle.kts)
+      # auto-provisions the JDK 25 toolchain; the job's bash default
+      # shell makes ./gradlew work on the Windows lane too.
+      - name: Toolchain locator unit tests
+        working-directory: runtime
+        run: ./gradlew test --tests "dev.topo.app.ToolchainTest" --no-daemon --console=plain
+
       # Smoke test: install topo-lang-java, then verify a downstream
       # find_package(topo-lang-java CONFIG REQUIRED) resolves and links
       # cleanly against the topo::lang-java::TopoJavaAnalysis target.
