@@ -48,6 +48,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # The runtime's Gradle build pins Java 25 (FFM LTS). The foojay
+      # resolver in settings.gradle.kts normally auto-provisions it, but
+      # that download path proved unreliable on the windows-2022 lane
+      # (toolchain metadata fetch failed with a bare vendor name). Install
+      # 25 upfront so Gradle finds an installed toolchain and never
+      # downloads.
+      - name: Set up JDK 25 (runtime Gradle toolchain)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
       - name: Export GHA cache env (for vcpkg x-gha backend)
         uses: actions/github-script@v8
         with:
@@ -127,6 +139,16 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 120
+
+      # First CI surface for the runtime's Toolchain locator suite —
+      # the ctest step above never runs Gradle. Scoped --tests filter:
+      # VerticalSliceTest needs a real topo-check binary, which this
+      # job does not build. The foojay resolver (settings.gradle.kts)
+      # auto-provisions the JDK 25 toolchain; the job's bash default
+      # shell makes ./gradlew work on the Windows lane too.
+      - name: Toolchain locator unit tests
+        working-directory: runtime
+        run: ./gradlew test --tests "dev.topo.app.ToolchainTest" --no-daemon --console=plain
 
       # Smoke test: install topo-lang-java, then verify a downstream
       # find_package(topo-lang-java CONFIG REQUIRED) resolves and links
@@ -335,27 +357,14 @@ jobs:
 
       # The checker suite passes ctest even when its gtest cases
       # GTEST_SKIP() (jdtls absent) — "Passed" can mean "every L2 case
-      # skipped". Re-run the binary and FAIL on any skip or zero passes,
-      # converting a silent all-skip into a hard failure (skip != pass).
+      # skipped". Re-run the binary and FAIL on any skip or zero passes
+      # (strict mode), and additionally require the named jdtls-backed
+      # L2 cases in the PASSED set — count-only guards go vacuously
+      # green when a live case is renamed or filtered out. Renaming one
+      # of the listed tests therefore reddens this step until the list
+      # is updated; that is the intended contract.
       - name: Assert L2 deep containment ran (skip != pass)
         run: |
-          # set +e: handle errors explicitly — a grep no-match inside a
-          # command substitution would otherwise abort the step silently.
-          set +e
-          exe=$(find build -type f -name "topo-lang-java-check-tests" 2>/dev/null | head -1)
-          if [ -z "${exe}" ]; then
-            echo "::error::topo-lang-java-check-tests not built — topo-cli prefix missing at configure time?"; exit 1
-          fi
-          out=$("${exe}" 2>&1); rc=$?
-          printf '%s\n' "${out}" | tail -20
-          passed=$(printf '%s\n' "${out}" | grep -oE '\[  PASSED  \] [0-9]+ test' | grep -oE '[0-9]+' | tail -1)
-          skipped=$(printf '%s\n' "${out}" | grep -oE '\[  SKIPPED \] [0-9]+ test' | grep -oE '[0-9]+' | tail -1)
-          [ -z "${passed}" ] && passed=0
-          [ -z "${skipped}" ] && skipped=0
-          echo "topo-lang-java-check-tests: ${passed} PASSED, ${skipped} skipped (exit ${rc})"
-          if [ "${rc}" -ne 0 ]; then
-            echo "::error::checker-e2e suite failed (exit ${rc})"; exit 1
-          fi
-          if [ "${skipped}" -gt 0 ] || [ "${passed}" -lt 1 ]; then
-            echo "::error::L2 deep containment did not RUN (jdtls missing → GTEST_SKIP; skip != pass)"; exit 1
-          fi
+          bash .github/scripts/assert-live-cases.sh strict topo-lang-java-check-tests \
+            JavaContainmentL2.ContainmentL2ExternalOk \
+            JavaContainmentL2.ContainmentL2RuntimeExec

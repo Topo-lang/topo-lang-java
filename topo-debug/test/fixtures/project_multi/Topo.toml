@@ -19,4 +19,6 @@ mode = "dev"
 # the host class. Suppress it from symbol-level completeness matching (same
 # pattern as the quickstart's OrderProcessor wrapper) so the fixture stays
 # check-clean now that every `topo build` runs topo-check by default.
-ignore_patterns = ["Main", "Main::*"]
+# `Main::main` itself is covered by the default ignore_main=true; no
+# member pattern is needed.
+ignore_patterns = ["Main"]
