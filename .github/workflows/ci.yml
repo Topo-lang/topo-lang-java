@@ -48,6 +48,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # The runtime's Gradle build pins Java 25 (FFM LTS). The foojay
+      # resolver in settings.gradle.kts normally auto-provisions it, but
+      # that download path proved unreliable on the windows-2022 lane
+      # (toolchain metadata fetch failed with a bare vendor name). Install
+      # 25 upfront so Gradle finds an installed toolchain and never
+      # downloads.
+      - name: Set up JDK 25 (runtime Gradle toolchain)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
       - name: Export GHA cache env (for vcpkg x-gha backend)
         uses: actions/github-script@v8
         with:
