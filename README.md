@@ -44,7 +44,7 @@ plugin) build by default. To opt into the JVM-backed toolchain layer
 `topo-debug-java`, the JFR bridge, and span/JFR fixtures plus the
 extractor-fidelity + check E2E tests that consume them), configure with
 `-DTOPO_LANG_JAVA_ENABLE_JVM_BACKEND=ON` and set
-`-DTOPO_GRADLE_JAVA_HOME=<JDK 17 home>`.
+`-DTOPO_GRADLE_JAVA_HOME=<JDK 25 home>`.
 
 ## Tests
 
@@ -76,3 +76,25 @@ The exported library targets (always available) are:
 When configured with `-DTOPO_LANG_JAVA_ENABLE_JVM_BACKEND=ON`, the
 Gradle-built jars (`topo-runtime.jar`, `topo-extract-java`,
 `topo-debug-java`, JFR bridge) also ship alongside.
+
+### Java project analysis
+
+Use JDK 25 for the JVM tools. Export a Gradle source set with its resolved
+compile classpath, generated sources and configured source level:
+
+```sh
+./gradlew -I /path/to/topo-lang-java/scripts/export-java-project.gradle topoExportJavaProject
+# For a subproject: :module:topoExportJavaProject; for tests: -PtopoSourceSet=test
+
+topo-check --project . --java-project build/topo/java-main-project.json
+topo-transpile --from java --to python --java-project build/topo/java-main-project.json --verify-strict api.topo
+```
+
+The export task runs the selected Java compile task first. Hand-authored models
+use the same JSON shape: `sourceLevel` (string, default `"25"`), `classpath`,
+`sourcepath`, and `files` (arrays of paths relative to the model file).
+`--sources` overrides the model's file selection for transpilation. For checks,
+`[check].java_project = "build/topo/java-main-project.json"` in `Topo.toml` supplies
+the default model; the CLI option takes precedence. Java checks recompute
+semantic facts for each run so changes to external dependencies cannot reuse a
+source-only cached pass. Missing bindings are reported as analysis errors.

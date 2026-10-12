@@ -10,10 +10,14 @@
 namespace topo::lsp { class JdtBridge; }
 
 namespace topo::check {
+class JavaSourceFacts;
 
 class JavaAnalysisProvider : public LanguageAnalysisProvider {
 public:
+    JavaAnalysisProvider();
     ~JavaAnalysisProvider() override;
+    void configureAnalysis(const std::string& projectDir, const std::string& projectModelPath) override;
+    std::vector<CheckDiagnostic> analysisDiagnostics() const override;
 
     std::unique_ptr<SymbolExtractor> createSymbolExtractor() override;
     std::unique_ptr<ImportExtractor> createImportExtractor() override;
@@ -42,6 +46,7 @@ public:
 
 private:
     std::unique_ptr<lsp::JdtBridge> bridge_;
+    std::shared_ptr<JavaSourceFacts> facts_;
 };
 
 /// Factory function (avoids incomplete-type issues when constructing via make_unique).

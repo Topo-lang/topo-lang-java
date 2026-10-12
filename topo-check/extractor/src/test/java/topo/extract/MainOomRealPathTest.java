@@ -106,7 +106,7 @@ class MainOomRealPathTest {
         Path heavyJava = tmp.resolve("Heavy.java");
         Files.writeString(heavyJava, synthesisHeavyJava(/*depth=*/32));
         // Depth 32 is sufficient to allocate large ITypeBinding trees under
-        // JDT 3.36; we deliberately leave the actual OOM trigger to the
+        // the original JDT baseline; the trigger remains JDK/JDT-dependent, so use the
         // JVM heap allocator. A test that *requires* OOM to trip is the
         // flaky-proxy shape the issue resolution body documents avoiding.
         // We assert the JSON contract holds either way and only assert
@@ -116,7 +116,8 @@ class MainOomRealPathTest {
 
         // Launch the jar with an aggressive heap cap.
         ProcessBuilder pb = new ProcessBuilder(
-            "java", "-Xmx16m", "-jar", jar.toString());
+            Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+            "-Xmx16m", "-jar", jar.toString());
         pb.redirectErrorStream(false);
 
         Process proc = pb.start();

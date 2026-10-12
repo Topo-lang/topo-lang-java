@@ -19,7 +19,8 @@
           "String"
         ]
       },
-      "unsupported": []
+      "unsupported": [],
+      "accessModifier": "public"
     }
   ],
   "runDegraded": false,

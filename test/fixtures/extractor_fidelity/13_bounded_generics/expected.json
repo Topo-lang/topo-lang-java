@@ -32,13 +32,21 @@
           "bound": {
             "nameParts": [
               "Comparable"
+            ],
+            "templateArgs": [
+              {
+                "nameParts": [
+                  "U"
+                ]
+              }
             ]
           },
           "kind": "type",
           "name": "U"
         }
       ],
-      "unsupported": []
+      "unsupported": [],
+      "accessModifier": "public"
     }
   ],
   "runDegraded": false,

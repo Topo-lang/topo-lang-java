@@ -1,0 +1,45 @@
+// Run explicitly in the source project:
+// ./gradlew -I /path/to/export-java-project.gradle :module:topoExportJavaProject
+// Select another source set with -PtopoSourceSet=test.
+import groovy.json.JsonOutput
+import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.compile.JavaCompile
+
+gradle.beforeProject { project ->
+    project.plugins.withType(JavaPlugin) {
+        project.tasks.register('topoExportJavaProject') {
+            group = 'verification'
+            description = 'Export the selected Java source set and resolved dependencies for Topo analysis.'
+            def selected = project.providers.gradleProperty('topoSourceSet').orElse('main')
+            def sourceSets = project.extensions.getByType(SourceSetContainer)
+            def sourceSet = sourceSets.named(selected.get())
+            def compileTask = project.tasks.named(sourceSet.get().compileJavaTaskName, JavaCompile)
+            dependsOn(compileTask)
+            def destination = project.layout.buildDirectory.file("topo/java-${selected.get()}-project.json")
+            outputs.file(destination)
+            // Resolved dependency contents and generated sources must be refreshed
+            // even when the compile task itself is up-to-date.
+            outputs.upToDateWhen { false }
+            doLast {
+                def compile = compileTask.get()
+                def generated = compile.options.generatedSourceOutputDirectory.orNull?.asFile
+                def roots = sourceSet.get().allJava.srcDirs.findAll { it.isDirectory() }
+                if (generated?.isDirectory()) roots += generated
+                def files = sourceSet.get().allJava.files.findAll { it.isFile() && it.name.endsWith('.java') }
+                if (generated?.isDirectory()) files += project.fileTree(generated).matching { include '**/*.java' }.files
+                def paths = { items -> items.collect { it.canonicalPath }.unique().sort() }
+                def model = [
+                    sourceLevel: compile.options.release.orNull?.toString() ?: compile.sourceCompatibility,
+                    classpath: compile.classpath.files.collect { it.canonicalPath }.unique(),
+                    sourcepath: paths(roots),
+                    files: paths(files)
+                ]
+                def output = destination.get().asFile
+                output.parentFile.mkdirs()
+                output.text = JsonOutput.prettyPrint(JsonOutput.toJson(model)) + '\n'
+                logger.lifecycle("Topo Java project: ${output}")
+            }
+        }
+    }
+}

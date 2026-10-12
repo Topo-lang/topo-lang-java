@@ -8,7 +8,7 @@ version = "0.1.0"
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
+        languageVersion.set(JavaLanguageVersion.of(25))
     }
 }
 
@@ -17,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.eclipse.jdt:org.eclipse.jdt.core:3.36.0")
+    implementation("org.eclipse.jdt:org.eclipse.jdt.core:3.44.0")
     implementation("com.google.code.gson:gson:2.11.0")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")

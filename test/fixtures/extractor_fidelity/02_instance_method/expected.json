@@ -22,7 +22,8 @@
           "int"
         ]
       },
-      "unsupported": []
+      "unsupported": [],
+      "accessModifier": "public"
     }
   ],
   "runDegraded": false,

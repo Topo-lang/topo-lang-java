@@ -5,12 +5,13 @@
         {
           "expr": {
             "description": "try statement",
-            "kind": "unsupported"
+            "kind": "unsupported",
+            "fidelity": "inferred"
           },
           "kind": "exprstmt"
         }
       ],
-      "fidelity": "source",
+      "fidelity": "inferred",
       "params": [],
       "qualifiedName": "Safe.tryFn",
       "returnType": {
@@ -18,7 +19,10 @@
           "int"
         ]
       },
-      "unsupported": []
+      "unsupported": [
+        "try statement"
+      ],
+      "accessModifier": "public"
     }
   ],
   "runDegraded": false,

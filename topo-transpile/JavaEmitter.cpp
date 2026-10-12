@@ -1,5 +1,6 @@
 #include "JavaEmitter.h"
 #include "topo/Stdlib/Types.h"
+#include "topo/Transpile/EmissionValidation.h"
 #include <algorithm>
 #include <cctype>
 #include <functional>
@@ -219,6 +220,7 @@ JavaEmitter::JavaEmitter(TypeBinder binder) : binder_(std::move(binder)) {}
 
 EmitResult JavaEmitter::emit(const TranspileModule& module) {
     EmitResult result;
+    result.errors = validateEmission(module, true);
 
     struct NsGroup {
         std::vector<const TranspileType*> types;
@@ -497,7 +499,16 @@ std::string JavaEmitter::emitExpr(const Expr& expr) {
     }
     case Expr::Kind::Call: {
         const auto& e = static_cast<const CallExpr&>(expr);
-        std::string result = e.callee + "(";
+        std::string receiver;
+        if (e.receiver) {
+            receiver = emitExpr(*e.receiver);
+            const auto kind = e.receiver->kind();
+            if (kind != Expr::Kind::VarRef && kind != Expr::Kind::Call &&
+                kind != Expr::Kind::MemberAccess && kind != Expr::Kind::Index &&
+                kind != Expr::Kind::Construct) receiver = "(" + receiver + ")";
+            receiver += ".";
+        }
+        std::string result = receiver + e.callee + "(";
         for (size_t i = 0; i < e.args.size(); ++i) {
             if (i > 0) result += ", ";
             result += emitExpr(*e.args[i]);
@@ -532,6 +543,15 @@ std::string JavaEmitter::emitExpr(const Expr& expr) {
         }
         result += ")";
         return result;
+    }
+    case Expr::Kind::MethodReference: {
+        const auto& e = static_cast<const MethodReferenceExpr&>(expr);
+        if (e.referenceKind == "constructor") return emitType(e.ownerType) + "::new";
+        if (e.referenceKind == "type") return emitType(e.ownerType) + "::" + e.callee;
+        if (e.referenceKind == "super")
+            return (e.receiver ? emitExpr(*e.receiver) : "super") + "::" + e.callee;
+        if (e.receiver) return "(" + emitExpr(*e.receiver) + ")::" + e.callee;
+        return "/* incomplete method reference */ null";
     }
     case Expr::Kind::Lambda: {
         const auto& e = static_cast<const LambdaExpr&>(expr);

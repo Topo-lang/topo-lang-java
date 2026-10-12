@@ -11,13 +11,13 @@ public class App {
         gCount = gCount + 1;
     }
 
-    public static void finalize() {
+    public static void finish() {
         gState = 2;
         gCount = gCount + 10;
     }
 
     public static void run() {
         init();
-        finalize();
+        finish();
     }
 }

@@ -260,3 +260,8 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/topo-lang-javaConfigVersion.cmake
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/topo-lang-java
 )
+
+# Explicit Gradle source-set exporter consumed by --java-project.
+install(FILES scripts/export-java-project.gradle
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/topo-lang-java/scripts
+    COMPONENT topo-lang-java)

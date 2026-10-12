@@ -7,11 +7,12 @@ if(MINGW)
     add_link_options(-static -static-libgcc -static-libstdc++)
 endif()
 
-# Lang type tests (header-only, no JVM toolchain dependency)
+# Language and protocol tests; real JDT cases require the optional extractor.
 add_executable(topo-lang-java-tests
     unit/JavaStubGeneratorTest.cpp
     unit/JavaEmitterStdlibTest.cpp
     unit/JavaAnalysisProviderTest.cpp
+    ${PROJECT_SOURCE_DIR}/topo-check/analysis/JavaSourceFactsTest.cpp
     unit/JavaSymbolExtractorTest.cpp
 )
 # TopoJavaAnalysis PUBLIC-propagates TopoJavaLSP → topo::core::TopoLSPBridge
@@ -26,8 +27,24 @@ target_include_directories(topo-lang-java-tests PRIVATE
     ${PROJECT_SOURCE_DIR}/topo-transpile   # for JavaEmitter.h
 )
 topo_set_compiler_flags(topo-lang-java-tests)
+# Real JDT cases use the same extractor as this build. Keep protocol cases
+# independent so their per-test fake launcher remains first on PATH.
+set(_JAVA_SOURCE_FACTS_HAVE_EXTRACTOR FALSE)
+if(TARGET topo-extract-java)
+    add_dependencies(topo-lang-java-tests topo-extract-java)
+    set(_JAVA_SOURCE_FACTS_HAVE_EXTRACTOR TRUE)
+else()
+    message(STATUS "JavaSourceFactsTest real JDT cases disabled: topo-extract-java is not built")
+endif()
 gtest_discover_tests(topo-lang-java-tests DISCOVERY_TIMEOUT 30
+    TEST_LIST _JAVA_LANGUAGE_TESTS
     PROPERTIES LABELS "toolchain\;lang-java" TIMEOUT 60)
+# TEST_INCLUDE_FILES and ENVIRONMENT work with the minimum CMake 3.20.
+# Append after GoogleTest's discovery include so the test list is available.
+configure_file(JavaSourceFactsEnvironment.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/JavaSourceFactsEnvironment.cmake" @ONLY)
+set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/JavaSourceFactsEnvironment.cmake")
 
 # JavaDriver input-trust boundary tests — exercises validateClasspath /
 # validateMainClass / validateJavaHome rejects of hostile inputs.

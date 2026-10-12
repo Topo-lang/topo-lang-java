@@ -1,4 +1,5 @@
 #include "JavaAnalysisProvider.h"
+#include "JavaSourceFacts.h"
 #include "JavaCallEdgeExtractor.h"
 #include "JavaCallSiteExtractor.h"
 #include "JavaImportExtractor.h"
@@ -18,15 +19,15 @@ namespace fs = std::filesystem;
 
 namespace topo::check {
 
+JavaAnalysisProvider::JavaAnalysisProvider() : facts_(std::make_shared<JavaSourceFacts>()) {}
+void JavaAnalysisProvider::configureAnalysis(const std::string& projectDir,const std::string& modelPath) { facts_->configure(projectDir,modelPath); }
+std::vector<CheckDiagnostic> JavaAnalysisProvider::analysisDiagnostics() const { return facts_->diagnostics(); }
 JavaAnalysisProvider::~JavaAnalysisProvider() {
     shutdownLSP();
 }
 
 std::unique_ptr<SymbolExtractor> JavaAnalysisProvider::createSymbolExtractor() {
-    if (isLSPReady() && bridge_->hasSemanticTokens()) {
-        return std::make_unique<JavaLSPSymbolExtractor>(*bridge_);
-    }
-    return std::make_unique<JavaSymbolExtractor>(); // L1 regex fallback
+    return javaFactSymbols(facts_);
 }
 
 std::unique_ptr<ImportExtractor> JavaAnalysisProvider::createImportExtractor() {
@@ -35,24 +36,22 @@ std::unique_ptr<ImportExtractor> JavaAnalysisProvider::createImportExtractor() {
 }
 
 std::unique_ptr<CallSiteExtractor> JavaAnalysisProvider::createCallSiteExtractor() {
-    return std::make_unique<JavaCallSiteExtractor>(); // L1 regex fallback
+    return javaFactCalls(facts_);
 }
 
 std::unique_ptr<CallEdgeExtractor> JavaAnalysisProvider::createCallEdgeExtractor() {
-    // Java currently runs L1 call-edge extraction only; the LSP/L2 merging
-    // layer that the C++ provider uses for clangd-driven cross-TU edges has
-    // no jdtls counterpart wired here.
-    return std::make_unique<JavaCallEdgeExtractor>();
+    return javaFactEdges(facts_);
 }
 
 std::unique_ptr<SymbolAccessExtractor> JavaAnalysisProvider::createSymbolAccessExtractor() {
-    return std::make_unique<JavaSymbolAccessExtractor>();
+    return javaFactAccesses(facts_);
 }
 
 std::vector<std::string> JavaAnalysisProvider::collectSourceFiles(
     const std::string& projectDir,
     const std::vector<std::string>& /*includeDirs*/) const {
-    std::vector<std::string> files;
+    std::vector<std::string> files = facts_->sourceFiles();
+    if (!files.empty()) { facts_->load(files); return files; }
     // Non-throwing scan (error_code construction + increment, same pattern
     // as the C++ provider and CheckRunner::discoverRelevantFiles): a source
     // root that is unexpectedly a plain file, unreadable, or vanishing must
@@ -79,6 +78,7 @@ std::vector<std::string> JavaAnalysisProvider::collectSourceFiles(
     // Deduplicate (maven path is inside flat src/)
     std::sort(files.begin(), files.end());
     files.erase(std::unique(files.begin(), files.end()), files.end());
+    facts_->load(files);
     return files;
 }
 

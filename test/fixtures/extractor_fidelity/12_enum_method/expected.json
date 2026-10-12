@@ -19,15 +19,19 @@
           "int"
         ]
       },
-      "unsupported": []
+      "unsupported": [],
+      "accessModifier": "public"
     }
   ],
   "runDegraded": false,
   "types": [
     {
-      "fidelity": "source",
+      "fidelity": "inferred",
       "fields": [],
-      "qualifiedName": "Color"
+      "qualifiedName": "Color",
+      "unsupported": [
+        "enum constants and enum identity require a Java-specific type model"
+      ]
     }
   ]
 }

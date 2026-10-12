@@ -1,5 +1,6 @@
 add_library(TopoJavaAnalysis
     JavaAnalysisProvider.cpp
+    extract/JavaSourceFacts.cpp
     stub/JavaStubGenerator.cpp
     catalog/JavaUnsafeCatalog.cpp
     extract/JavaCallEdgeExtractor.cpp

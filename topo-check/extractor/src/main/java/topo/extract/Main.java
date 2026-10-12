@@ -31,141 +31,157 @@ public class Main {
     private static boolean bindingResolutionDegraded = false;
 
     public static void main(String[] args) throws Exception {
-        // Read JSON request from stdin
-        String input = readStdin();
-        JsonObject request = JsonParser.parseString(input).getAsJsonObject();
-
-        JsonArray filesArr = request.getAsJsonArray("files");
-        JsonArray functionsArr = request.has("functions") ? request.getAsJsonArray("functions") : new JsonArray();
-
-        Set<String> requestedFunctions = new HashSet<>();
-        for (JsonElement el : functionsArr) {
-            requestedFunctions.add(el.getAsString());
+        JsonObject result;
+        try {
+            JsonObject request = JsonParser.parseString(readStdin()).getAsJsonObject();
+            result = extract(request);
+        } catch (RuntimeException error) {
+            JsonArray diagnostics = new JsonArray();
+            diagnostic(diagnostics, "error", "invalid-request", error.getMessage(), "", 0);
+            result = failedRequest(diagnostics);
         }
+        System.out.println(GSON.toJson(result));
+    }
 
+    // Package-visible for deterministic real-JDT tests without replacing stdio.
+    static JsonObject extract(JsonObject request) throws IOException {
+        JsonArray diagnostics = new JsonArray();
+        for (String key : List.of("files", "functions", "classpath", "sourcepath")) {
+            if (!request.has(key)) continue;
+            if (!request.get(key).isJsonArray()) {
+                diagnostic(diagnostics, "error", "invalid-request", key + " must be an array", "", 0);
+                continue;
+            }
+            for (JsonElement value : request.getAsJsonArray(key))
+                if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString() || value.getAsString().isBlank())
+                    diagnostic(diagnostics, "error", "invalid-request", key + " entries must be non-empty strings", "", 0);
+        }
+        if (request.has("sourceLevel") && (!request.get("sourceLevel").isJsonPrimitive() || !request.get("sourceLevel").getAsJsonPrimitive().isString()))
+            diagnostic(diagnostics, "error", "invalid-request", "sourceLevel must be a string", "", 0);
+        if (!diagnostics.isEmpty()) return failedRequest(diagnostics);
         JsonArray allFunctions = new JsonArray();
         JsonArray allTypes = new JsonArray();
-
-        for (JsonElement fileEl : filesArr) {
-            String filePath = fileEl.getAsString();
-            String source;
-            try {
-                source = Files.readString(Path.of(filePath));
-            } catch (IOException e) {
-                System.err.println("topo-extract-java: failed to read " + filePath + ": " + e.getMessage());
-                continue;
-            }
-
-            CompilationUnit cu = parseSource(source, filePath);
-            if (cu == null) {
-                System.err.println("topo-extract-java: failed to parse " + filePath);
-                continue;
-            }
-
-            // Extract package name
-            String packageName = "";
-            if (cu.getPackage() != null) {
-                packageName = cu.getPackage().getName().getFullyQualifiedName();
-            }
-
-            // Walk all type declarations
-            for (Object typeObj : cu.types()) {
-                if (typeObj instanceof AbstractTypeDeclaration typeDecl) {
-                    collectFromType(typeDecl, packageName, requestedFunctions, allFunctions, allTypes);
-                }
-            }
+        Set<String> requestedFunctions = new HashSet<>();
+        if (request.has("functions")) for (JsonElement e : request.getAsJsonArray("functions"))
+            requestedFunctions.add(e.getAsString().replace("::", "."));
+        List<String> files = new ArrayList<>();
+        Map<String, String> sources = new LinkedHashMap<>();
+        if (request.has("files")) for (JsonElement e : request.getAsJsonArray("files")) {
+            String path = Path.of(e.getAsString()).toAbsolutePath().normalize().toString();
+            try { sources.put(path, Files.readString(Path.of(path))); files.add(path); }
+            catch (IOException ex) { diagnostic(diagnostics, "error", "source-unreadable", ex.getMessage(), path, 0); }
         }
-
-        // Build TranspileModule
-        JsonObject module = new JsonObject();
-        module.add("types", allTypes);
-        module.add("functions", allFunctions);
-        // OOM-degraded run signal — exposed to the C++ caller so the
-        // topo-check report can surface a per-suite diagnostic instead of
-        // letting the binding-disabled fallback parse pass silently.
-        // Always emitted (false on the happy path); a true value MUST
-        // downgrade per-function fidelity and surface a CheckDiagnostic.
-        module.addProperty("runDegraded", bindingResolutionDegraded);
-        if (bindingResolutionDegraded) {
-            module.addProperty("degradationReason",
-                "OutOfMemoryError during JDT binding resolution; "
-              + "binding-disabled fallback parse used for the remainder of the run. "
-              + "Cross-file qualified name resolution, method-reference / var-inference "
-              + "classification are degraded.");
+        String level = request.has("sourceLevel") ? request.get("sourceLevel").getAsString() : "25";
+        // JavaCore validates against the selected JDT distribution, not the host JVM.
+        if (!org.eclipse.jdt.core.JavaCore.getAllVersions().contains(level)) {
+            diagnostic(diagnostics, "error", "source-level", "Unsupported Java source level: " + level, "", 0);
+            files.clear();
         }
-
-        System.out.println(GSON.toJson(module));
-    }
-
-    // -----------------------------------------------------------------------
-    // Test hook: reset the sticky degradation flag.
-    //
-    // The flag is process-global so tests (and any future long-running
-    // extractor wrapper) need an explicit reset to avoid cross-test
-    // contamination. Package-private to keep it out of the public CLI
-    // surface; production code never calls it.
-    // -----------------------------------------------------------------------
-    static void resetDegradationStateForTests() {
-        bindingResolutionDegraded = false;
-    }
-
-    static boolean isBindingResolutionDegradedForTests() {
-        return bindingResolutionDegraded;
-    }
-
-    /// Parse Java source with JDT binding resolution enabled (issue #12).
-    /// On OutOfMemoryError, fall back to binding-disabled parsing and emit a
-    /// stderr warning. The fallback is sticky for the rest of the process to
-    /// avoid repeated OOM cycles on subsequent files.
-    private static CompilationUnit parseSource(String source, String filePath) {
-        if (!bindingResolutionDegraded) {
-            try {
-                return parseWithBindings(source, true);
-            } catch (OutOfMemoryError oom) {
-                System.err.println(
-                    "topo-extract-java: OutOfMemoryError during JDT binding resolution at " +
-                    filePath + " — falling back to binding-disabled parsing for the rest of this run. " +
-                    "Cross-file qualified name resolution and method-reference / var-inference " +
-                    "classification will degrade until the JVM heap is increased.");
+        String[] classpath = paths(request, "classpath", diagnostics);
+        String[] sourcepath = paths(request, "sourcepath", diagnostics);
+        if (sourcepath.length == 0) {
+            // Match each real file identity to its package root. Explicit sourcepath
+            // from the build model takes precedence over this standalone default.
+            Set<String> roots = new LinkedHashSet<>();
+            for (String file : files) {
+                Path root = Path.of(file).getParent();
+                var m = java.util.regex.Pattern.compile("(?m)^\\s*package\\s+([\\w.]+)\\s*;").matcher(sources.get(file));
+                if (m.find()) for (String ignored : m.group(1).split("\\.")) if (root != null) root = root.getParent();
+                if (root != null) roots.add(root.toString());
+            }
+            sourcepath = roots.toArray(String[]::new);
+        }
+        Map<String, CompilationUnit> units = new LinkedHashMap<>();
+        if (!files.isEmpty()) {
+            try { parseBatch(files, level, classpath, sourcepath, !bindingResolutionDegraded, units); }
+            catch (OutOfMemoryError oom) {
                 bindingResolutionDegraded = true;
-                // Fall through to binding-disabled retry
+                units.clear();
+                parseBatch(files, level, classpath, sourcepath, false, units);
+            } catch (IllegalArgumentException ex) {
+                diagnostic(diagnostics, "error", "parser-environment", ex.getMessage(), "", 0);
             }
         }
-        return parseWithBindings(source, false);
+        SourceFacts facts = new SourceFacts(diagnostics);
+        for (String file : files) {
+            CompilationUnit cu = units.get(file);
+            if (cu == null) {
+                diagnostic(diagnostics, "error", "parse-missing", "JDT produced no compilation unit", file, 0);
+                continue;
+            }
+            SourceContext.enter(file, sources.get(file), cu);
+            boolean errors = false;
+            for (var problem : cu.getProblems()) {
+                if (!problem.isError()) continue;
+                errors = true;
+                diagnostic(diagnostics, "error", "java-" + problem.getID(), problem.getMessage(), file, problem.getSourceLineNumber());
+            }
+            String pkg = cu.getPackage() == null ? "" : cu.getPackage().getName().getFullyQualifiedName();
+            int first = allFunctions.size();
+            for (Object type : cu.types()) if (type instanceof AbstractTypeDeclaration decl)
+                collectFromType(decl, pkg, requestedFunctions, allFunctions, allTypes);
+            if (errors || bindingResolutionDegraded) for (int i = first; i < allFunctions.size(); i++) {
+                JsonObject fn = allFunctions.get(i).getAsJsonObject();
+                fn.addProperty("fidelity", "inferred");
+                fn.getAsJsonArray("unsupported").add(errors ? "Java compilation errors; see diagnostics" : "JDT bindings unavailable after OutOfMemoryError");
+            }
+            facts.collect(cu);
+        }
+        Set<String> got = new HashSet<>();
+        for (JsonElement fn : allFunctions) got.add(fn.getAsJsonObject().get("qualifiedName").getAsString());
+        for (String requested : requestedFunctions) if (!got.contains(requested))
+            diagnostic(diagnostics, "error", "function-missing", "Requested function not found: " + requested, "", 0);
+        if (bindingResolutionDegraded)
+            diagnostic(diagnostics, "error", "binding-degraded", "OutOfMemoryError during JDT binding resolution; binding-disabled fallback used", "", 0);
+        JsonObject module = new JsonObject();
+        module.addProperty("schemaVersion", 2);
+        module.addProperty("sourceLevel", level);
+        module.add("types", allTypes); module.add("functions", allFunctions);
+        module.add("facts", facts.json()); module.add("diagnostics", diagnostics);
+        module.addProperty("analysisComplete", diagnostics.isEmpty());
+        module.addProperty("runDegraded", bindingResolutionDegraded);
+        if (bindingResolutionDegraded) module.addProperty("degradationReason",
+            "OutOfMemoryError during JDT binding resolution; binding-disabled fallback parse used");
+        return module;
     }
 
-    private static CompilationUnit parseWithBindings(String source, boolean resolveBindings) {
+    private static JsonObject failedRequest(JsonArray diagnostics) {
+        JsonObject out = new JsonObject(); out.addProperty("schemaVersion", 2);
+        out.add("types", new JsonArray()); out.add("functions", new JsonArray());
+        out.add("facts", new SourceFacts(diagnostics).json()); out.add("diagnostics", diagnostics);
+        out.addProperty("analysisComplete", false); out.addProperty("runDegraded", false); return out;
+    }
+
+    static void diagnostic(JsonArray out, String severity, String code, String message, String file, int line) {
+        JsonObject d = new JsonObject(); d.addProperty("severity", severity); d.addProperty("code", code);
+        d.addProperty("message", message); d.addProperty("file", file); d.addProperty("line", line); out.add(d);
+    }
+    private static String[] paths(JsonObject request, String key, JsonArray diagnostics) {
+        List<String> out = new ArrayList<>();
+        if (request.has(key)) for (JsonElement e : request.getAsJsonArray(key)) {
+            Path p = Path.of(e.getAsString()).toAbsolutePath().normalize();
+            if (!Files.exists(p)) diagnostic(diagnostics, "error", "missing-" + key, "Missing " + key + " entry: " + p, p.toString(), 0);
+            else out.add(p.toString());
+        }
+        return out.toArray(String[]::new);
+    }
+    private static void parseBatch(List<String> files, String level, String[] classpath, String[] sourcepath,
+                                   boolean bindings, Map<String, CompilationUnit> units) {
         ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
         parser.setKind(ASTParser.K_COMPILATION_UNIT);
-        parser.setSource(source.toCharArray());
-        parser.setResolveBindings(resolveBindings);
-        // setEnvironment(...) with empty classpath / sourcepath is required for
-        // binding resolution on standalone source (no IProject backing).
-        // Unit name and encoding stay default; binding resolution still works
-        // for in-file references and JDK names with this minimal environment.
-        if (resolveBindings) {
-            parser.setEnvironment(
-                new String[0],     // classpathEntries
-                new String[0],     // sourcepathEntries
-                new String[0],     // encodings
-                true);             // includeRunningVMBootclasspath
-            parser.setUnitName("Source.java");
-            parser.setBindingsRecovery(true);
-            parser.setStatementsRecovery(true);
-        }
-
+        parser.setResolveBindings(bindings); parser.setBindingsRecovery(true); parser.setStatementsRecovery(true);
+        parser.setEnvironment(classpath, sourcepath, null, true);
         Map<String, String> options = new HashMap<>();
-        options.put("org.eclipse.jdt.core.compiler.source", "17");
-        options.put("org.eclipse.jdt.core.compiler.compliance", "17");
-        options.put("org.eclipse.jdt.core.compiler.codegen.targetPlatform", "17");
+        org.eclipse.jdt.core.JavaCore.setComplianceOptions(level, options);
         parser.setCompilerOptions(options);
-
-        ASTNode result = parser.createAST(null);
-        if (result instanceof CompilationUnit cu) {
-            return cu;
-        }
-        return null;
+        parser.createASTs(files.toArray(String[]::new), null, new String[0], new FileASTRequestor() {
+            @Override public void acceptAST(String sourceFilePath, CompilationUnit ast) {
+                units.put(Path.of(sourceFilePath).toAbsolutePath().normalize().toString(), ast);
+            }
+        }, null);
     }
+    static void resetDegradationStateForTests() { bindingResolutionDegraded = false; }
+    static boolean isBindingResolutionDegradedForTests() { return bindingResolutionDegraded; }
 
     private static void collectFromType(
             AbstractTypeDeclaration typeDecl,
@@ -182,7 +198,7 @@ public class Main {
         //   { qualifiedName, fields:[{type,name}], baseClasses:[TypeNode], fidelity }
         // baseClasses is omitted entirely when empty (matches the C++
         // omit-when-empty idiom and keeps pre-inheritance JSON byte-identical).
-        JsonObject typeEntry = new JsonObject();
+        JsonObject typeEntry = SourceContext.attach(new JsonObject(), typeDecl);
         typeEntry.addProperty("qualifiedName", qualifiedTypeName);
 
         JsonArray fieldArr = new JsonArray();
@@ -193,10 +209,8 @@ public class Main {
         // baseClasses) when empty so pre-discriminator JSON stays byte-identical.
         JsonArray baseKindArr = new JsonArray();
         // Declaration-level generic parameters of this type. A bound is lossy
-        // (type-parameter names only) → downgrade the TYPE fidelity. Unlike
-        // functions, TranspileType has no `unsupported` vector, so the dropped
-        // bound is surfaced solely via fidelity. Collected here, attached after
-        // the field/base assembly so the omit-when-empty rule is uniform.
+        // (type-parameter names only) → downgrade the TYPE fidelity and record
+        // the dropped bound in its unsupported summary for verification.
         JsonArray typeParamArr = new JsonArray();
         List<String> typeBoundDowngrades = new ArrayList<>();
         if (typeDecl instanceof TypeDeclaration tdGen) {
@@ -241,10 +255,11 @@ public class Main {
             if (memberObj instanceof FieldDeclaration field) {
                 for (Object fragObj : field.fragments()) {
                     if (fragObj instanceof VariableDeclarationFragment frag) {
-                        JsonObject f = new JsonObject();
+                        JsonObject f = SourceContext.attach(new JsonObject(), frag);
                         f.add("type", AstConverter.convertType(field.getType()));
                         f.addProperty("name", frag.getName().getIdentifier());
                         f.addProperty("fidelity", "source");
+                        if (frag.getInitializer() != null) f.add("init", AstConverter.convertExpression(frag.getInitializer()));
                         fieldArr.add(f);
                     }
                 }
@@ -252,6 +267,10 @@ public class Main {
         }
 
         typeEntry.add("fields", fieldArr);
+        JsonArray initializers = new JsonArray();
+        for (Object member : typeDecl.bodyDeclarations()) if (member instanceof Initializer init)
+            initializers.add(AstConverter.convertStatement(init.getBody()));
+        if (!initializers.isEmpty()) typeEntry.add("initializers", initializers);
         if (baseArr.size() > 0) {
             typeEntry.add("baseClasses", baseArr);
             typeEntry.add("baseClassKinds", baseKindArr);
@@ -259,7 +278,15 @@ public class Main {
         if (typeParamArr.size() > 0) {
             typeEntry.add("templateParams", typeParamArr);
         }
-        typeEntry.addProperty("fidelity", typeBoundDowngrades.isEmpty() ? "source" : "inferred");
+        JsonArray typeUnsupported = new JsonArray();
+        for (String reason : typeBoundDowngrades) typeUnsupported.add(reason);
+        if (typeDecl instanceof EnumDeclaration enumType && !enumType.enumConstants().isEmpty())
+            typeUnsupported.add("enum constants and enum identity require a Java-specific type model");
+        if (typeDecl instanceof RecordDeclaration)
+            typeUnsupported.add("record components and generated record members require a Java-specific type model");
+        collectUnsupported(initializers, typeUnsupported);
+        if (!typeUnsupported.isEmpty()) typeEntry.add("unsupported", typeUnsupported);
+        typeEntry.addProperty("fidelity", typeUnsupported.isEmpty() ? "source" : "inferred");
         allTypes.add(typeEntry);
 
         // Collect methods
@@ -285,7 +312,7 @@ public class Main {
     }
 
     private static JsonObject convertMethod(MethodDeclaration method, String qualifiedName) {
-        JsonObject fn = new JsonObject();
+        JsonObject fn = SourceContext.attach(new JsonObject(), method);
         fn.addProperty("qualifiedName", qualifiedName);
         fn.add("returnType", AstConverter.convertType(method.getReturnType2()));
         fn.add("params", convertParams(method.parameters()));
@@ -303,9 +330,15 @@ public class Main {
         for (String d : boundDowngrades) {
             unsupported.add(d);
         }
+        for (Object parameter : method.parameters()) if (parameter instanceof SingleVariableDeclaration v && v.isVarargs())
+            unsupported.add("variadic parameter '" + v.getName() + "' requires a variadic-call model");
+        collectUnsupported(fn.get("body"), unsupported);
         fn.add("unsupported", unsupported);
+        int flags = method.resolveBinding() == null ? method.getModifiers() : method.resolveBinding().getModifiers();
+        fn.addProperty("accessModifier", Modifier.isPublic(flags) ? "public" : Modifier.isProtected(flags) ? "protected" : Modifier.isPrivate(flags) ? "private" : "");
+        SourceContext.binding(fn, method.resolveBinding());
         // Dropping a generic bound is a lossy recovery → downgrade fidelity.
-        fn.addProperty("fidelity", boundDowngrades.isEmpty() ? "source" : "inferred");
+        fn.addProperty("fidelity", unsupported.isEmpty() ? "source" : "inferred");
 
         // Declared checked-exception types (Java `throws` clause).
         JsonArray throwsArr = new JsonArray();
@@ -369,7 +402,12 @@ public class Main {
             if (paramObj instanceof SingleVariableDeclaration svd) {
                 JsonObject param = new JsonObject();
                 param.addProperty("name", svd.getName().getIdentifier());
-                param.add("type", AstConverter.convertType(svd.getType()));
+                JsonObject type = AstConverter.convertType(svd.getType());
+                if (svd.isVarargs()) {
+                    JsonArray names = type.getAsJsonArray("nameParts");
+                    names.set(names.size() - 1, new com.google.gson.JsonPrimitive(names.get(names.size() - 1).getAsString() + "[]"));
+                }
+                param.add("type", type);
                 arr.add(param);
             }
         }
@@ -387,6 +425,17 @@ public class Main {
             }
         }
         return stmts;
+    }
+
+    static void collectUnsupported(JsonElement element, JsonArray out) {
+        if (element == null || element.isJsonNull()) return;
+        if (element.isJsonArray()) { for (JsonElement e : element.getAsJsonArray()) collectUnsupported(e, out); }
+        else if (element.isJsonObject()) {
+            JsonObject obj = element.getAsJsonObject();
+            if (obj.has("kind") && "unsupported".equals(obj.get("kind").getAsString()))
+                out.add(obj.has("description") ? obj.get("description").getAsString() : "unsupported AST node");
+            for (var e : obj.entrySet()) if (e.getValue().isJsonObject() || e.getValue().isJsonArray()) collectUnsupported(e.getValue(), out);
+        }
     }
 
     private static String readStdin() throws IOException {

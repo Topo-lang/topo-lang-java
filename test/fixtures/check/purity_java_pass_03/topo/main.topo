@@ -1,4 +1,4 @@
-// Sequential stages — init() at stage<1>, finalize() at stage<2>.  Neither
+// Sequential stages — init() at stage<1>, finish() at stage<2>.  Neither
 // shares a stage with another method, so neither is "parallel".  Static
 // writes are allowed.
 
@@ -9,11 +9,11 @@ namespace app {
     type App {
       public:
         void init();
-        void finalize();
+        void finish();
     }
 
     fn run {
         stage<1> app::App::init();
-        stage<2> app::App::finalize();
+        stage<2> app::App::finish();
     }
 }

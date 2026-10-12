@@ -2,13 +2,13 @@
   "functions": [
     {
       "body": [],
-      "fidelity": "source",
+      "fidelity": "inferred",
       "params": [
         {
           "name": "nums",
           "type": {
             "nameParts": [
-              "int"
+              "int[]"
             ]
           }
         }
@@ -19,7 +19,10 @@
           "void"
         ]
       },
-      "unsupported": []
+      "unsupported": [
+        "variadic parameter 'nums' requires a variadic-call model"
+      ],
+      "accessModifier": "public"
     }
   ],
   "runDegraded": false,

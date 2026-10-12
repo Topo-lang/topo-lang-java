@@ -108,49 +108,11 @@ install(FILES ${_DEBUG_JAR}
     DESTINATION ${CMAKE_INSTALL_DATADIR}/topo-lang-java/lib
     COMPONENT topo-lang-java-jvm)
 
-# ── Project-level runtime JDK (≥21) ─────────────────────────────────────────
-#
-# The project-level Java fixtures below run through `topo build` →
-# topo-build-jvm-java → java -jar topo-transform.jar (bytecode verify +
-# transform). topo-transform.jar is compiled by Gradle's auto-downloaded
-# JDK 21 toolchain, so executing it requires a JRE ≥21. TOPO_GRADLE_JAVA_HOME
-# pins JDK 17 on macOS (Gradle 8.14 wrapper compatibility) — that's correct
-# for driving Gradle, wrong for running the transform JAR. Probe for a
-# JDK ≥21 here and use it exclusively for the project fixture launchers +
-# CTest JAVA_HOME. TinyMatrix below sticks with TOPO_GRADLE_JAVA_HOME because
-# its flow never invokes the transform JAR.
-set(TOPO_DEBUG_JAVA_RUNTIME_HOME "")
-if(APPLE)
-    foreach(_JDK_VER 21 22 23 25 26)
-        execute_process(
-            COMMAND /usr/libexec/java_home -v ${_JDK_VER}
-            OUTPUT_VARIABLE _RUNTIME_JDK
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-            RESULT_VARIABLE _RUNTIME_JDK_RESULT)
-        if(_RUNTIME_JDK_RESULT EQUAL 0 AND EXISTS "${_RUNTIME_JDK}/bin/java")
-            set(TOPO_DEBUG_JAVA_RUNTIME_HOME "${_RUNTIME_JDK}")
-            break()
-        endif()
-    endforeach()
-endif()
-if(NOT TOPO_DEBUG_JAVA_RUNTIME_HOME AND TOPO_GRADLE_JAVA_HOME)
-    # Last-resort: inspect TOPO_GRADLE_JAVA_HOME and use it if it's already
-    # ≥21 (some platforms hand us a fresh JDK without needing the probe).
-    execute_process(
-        COMMAND "${TOPO_GRADLE_JAVA_HOME}/bin/java" --version
-        OUTPUT_VARIABLE _GRADLE_JAVA_VER
-        ERROR_QUIET
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-    string(REGEX MATCH "^openjdk ([0-9]+)" _ "${_GRADLE_JAVA_VER}")
-    if(CMAKE_MATCH_1 AND CMAKE_MATCH_1 GREATER_EQUAL 21)
-        set(TOPO_DEBUG_JAVA_RUNTIME_HOME "${TOPO_GRADLE_JAVA_HOME}")
-    endif()
-endif()
-if(TOPO_DEBUG_JAVA_RUNTIME_HOME)
-    message(STATUS "topo-debug-java project fixtures: runtime JDK ${TOPO_DEBUG_JAVA_RUNTIME_HOME}")
-else()
-    message(STATUS "topo-debug-java project fixtures: no JDK ≥21 found — project_simple/project_multi will be skipped.")
+# ── Project-level runtime JDK (25) ─────────────────────────────────────────
+# Fixtures and transform/runtime jars use the same validated Java 25 baseline.
+set(TOPO_DEBUG_JAVA_RUNTIME_HOME "${TOPO_GRADLE_JAVA_HOME}")
+if(NOT TOPO_DEBUG_JAVA_RUNTIME_HOME)
+    message(STATUS "topo-debug-java project fixtures: no JDK 25 configured — project_simple/project_multi will be skipped.")
 endif()
 
 # ── Project-level fixtures ───────────────────────────────────
@@ -186,7 +148,7 @@ if(TOPO_DEBUG_JAVA_RUNTIME_HOME)
     # Per-fixture JDWP launcher — `topo debug --target <path>` execs this.
     # Prints `Listening for transport ... at: <port>` on stderr (the agent's
     # own message); the adapter parses the port and JDI-attaches. We bake the
-    # runtime JDK (≥21) path in because the adapter doesn't forward JAVA_HOME
+    # runtime JDK (25) path in because the adapter doesn't forward JAVA_HOME
     # and the launcher needs the same JRE that compiled the JAR.
     set(_PROJECT_SIMPLE_JAVA_LAUNCHER
         ${TOPO_DEBUG_JAVA_PROJECT_SIMPLE_DIR}/run_project_simple)
@@ -195,10 +157,7 @@ if(TOPO_DEBUG_JAVA_RUNTIME_HOME)
     file(WRITE ${_PROJECT_SIMPLE_JAVA_LAUNCHER}
     "#!/bin/sh
 # JDWP launcher for the project_simple Java fixture.
-# Uses the ≥21 runtime JDK (TOPO_DEBUG_JAVA_RUNTIME_HOME) so the JAR + its
-# transform-time dependencies execute on a JRE that supports class-file
-# version 65 (Java 21). TOPO_GRADLE_JAVA_HOME (often JDK 17 on macOS) is
-# fine for driving Gradle but cannot run topo-transform.jar.
+# Uses the Java 25 runtime that built the fixture and transform jars.
 exec \"${TOPO_DEBUG_JAVA_RUNTIME_HOME}/bin/java\" \\
     -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=127.0.0.1:0 \\
     -jar \"${TOPO_DEBUG_JAVA_PROJECT_SIMPLE_DIR}/main.jar\"
@@ -241,4 +200,4 @@ endif()
 # Expose the runtime JDK to the top-level test CMakeLists so its CTest
 # `ENVIRONMENT` properties can set JAVA_HOME for the topo-build invocation.
 set(TOPO_DEBUG_JAVA_RUNTIME_HOME ${TOPO_DEBUG_JAVA_RUNTIME_HOME}
-    CACHE INTERNAL "JDK ≥21 home used by topo-debug-java project fixtures")
+    CACHE INTERNAL "JDK 25 home used by topo-debug-java project fixtures")

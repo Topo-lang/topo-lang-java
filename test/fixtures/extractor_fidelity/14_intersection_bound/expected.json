@@ -22,6 +22,13 @@
             {
               "nameParts": [
                 "Comparable"
+              ],
+              "templateArgs": [
+                {
+                  "nameParts": [
+                    "T"
+                  ]
+                }
               ]
             },
             {

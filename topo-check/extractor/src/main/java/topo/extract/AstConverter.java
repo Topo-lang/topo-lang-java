@@ -9,7 +9,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.eclipse.jdt.core.dom.*;
 
-import java.util.List;
+import java.util.*;
 
 public final class AstConverter {
 
@@ -52,6 +52,9 @@ public final class AstConverter {
             for (var el : rawParts) {
                 parts.add(el);
             }
+            JsonArray args = new JsonArray();
+            for (Object arg : pt.typeArguments()) args.add(convertType((Type)arg));
+            node.add("templateArgs", args);
         } else {
             parts.add(type.toString());
         }
@@ -65,6 +68,9 @@ public final class AstConverter {
     // -----------------------------------------------------------------------
 
     public static JsonObject convertStatement(Statement stmt) {
+        return SourceContext.attach(convertStatementImpl(stmt), stmt);
+    }
+    private static JsonObject convertStatementImpl(Statement stmt) {
         if (stmt instanceof VariableDeclarationStatement vds) {
             return convertVarDeclStmt(vds);
         } else if (stmt instanceof ExpressionStatement es) {
@@ -259,6 +265,9 @@ public final class AstConverter {
     // -----------------------------------------------------------------------
 
     public static JsonObject convertExpression(Expression expr) {
+        return SourceContext.attach(convertExpressionImpl(expr), expr);
+    }
+    private static JsonObject convertExpressionImpl(Expression expr) {
         if (expr instanceof InfixExpression ie) {
             return convertInfix(ie);
         } else if (expr instanceof PrefixExpression pe) {
@@ -306,10 +315,10 @@ public final class AstConverter {
             return unsupportedExpr("array initializer expression");
         } else if (expr instanceof InstanceofExpression) {
             return unsupportedExpr("instanceof expression");
-        } else if (expr instanceof LambdaExpression) {
-            return unsupportedExpr("lambda expression");
-        } else if (expr instanceof MethodReference) {
-            return unsupportedExpr("method reference expression");
+        } else if (expr instanceof LambdaExpression lambda) {
+            return convertLambda(lambda);
+        } else if (expr instanceof MethodReference ref) {
+            return convertMethodReference(ref);
         } else if (expr instanceof SuperMethodInvocation) {
             return unsupportedExpr("super method invocation");
         } else if (expr instanceof Assignment) {
@@ -397,22 +406,9 @@ public final class AstConverter {
         } else {
             callee = member;
         }
-        obj.addProperty("callee", callee);
-
-        // Issue #12: when JDT binding resolution is enabled, attach the resolved
-        // qualified name so downstream consumers (containment classification,
-        // transpiler) can match against catalogs by fully-qualified name rather
-        // than by surface form. Falls back to absent when bindings are off.
-        IMethodBinding binding = mi.resolveMethodBinding();
-        if (binding != null) {
-            ITypeBinding declaring = binding.getDeclaringClass();
-            if (declaring != null) {
-                String fqn = declaring.getQualifiedName();
-                if (fqn != null && !fqn.isEmpty()) {
-                    obj.addProperty("resolvedQualifiedName", fqn + "." + binding.getName());
-                }
-            }
-        }
+        obj.addProperty("callee", member);
+        if (mi.getExpression() != null) obj.add("receiver", convertExpression(mi.getExpression()));
+        SourceContext.binding(obj, mi.resolveMethodBinding());
 
         JsonArray args = new JsonArray();
         @SuppressWarnings("unchecked")
@@ -516,6 +512,7 @@ public final class AstConverter {
     }
 
     private static JsonObject convertClassInstanceCreation(ClassInstanceCreation cic) {
+        if (cic.getAnonymousClassDeclaration() != null) return unsupportedExpr("anonymous class body");
         JsonObject obj = new JsonObject();
         obj.addProperty("kind", "construct");
         // The model's ConstructExpr carries a TypeNode (`type`), not a string
@@ -589,6 +586,7 @@ public final class AstConverter {
     private static JsonObject unsupportedExpr(String description) {
         JsonObject obj = new JsonObject();
         obj.addProperty("kind", "unsupported");
+        obj.addProperty("fidelity", "inferred");
         obj.addProperty("description", description);
         return obj;
     }
@@ -659,4 +657,77 @@ public final class AstConverter {
         if (op == Assignment.Operator.RIGHT_SHIFT_UNSIGNED_ASSIGN) return "shr";
         return op.toString();
     }
+    private static JsonObject convertLambda(LambdaExpression lambda) {
+        JsonObject out = new JsonObject(); out.addProperty("kind", "lambda");
+        IMethodBinding binding = lambda.resolveMethodBinding();
+        out.add("returnType", SourceContext.type(binding == null ? null : binding.getReturnType()));
+        out.add("targetType", SourceContext.type(lambda.resolveTypeBinding()));
+        JsonArray params = new JsonArray(); Set<String> localKeys = new HashSet<>();
+        for (Object p : lambda.parameters()) {
+            VariableDeclaration v = (VariableDeclaration)p;
+            JsonObject param = new JsonObject(); param.addProperty("name", v.getName().getIdentifier());
+            IVariableBinding vb = v.resolveBinding();
+            param.add("type", SourceContext.type(vb == null ? null : vb.getType())); params.add(param);
+            if (vb != null) localKeys.add(vb.getKey());
+        }
+        lambda.getBody().accept(new ASTVisitor() {
+            @Override public boolean visit(VariableDeclarationFragment v) {
+                if (v.resolveBinding()!=null) localKeys.add(v.resolveBinding().getKey()); return true;
+            }
+        });
+        JsonArray captures = new JsonArray(); Set<String> captured = new HashSet<>();
+        lambda.getBody().accept(new ASTVisitor() {
+            @Override public boolean visit(SimpleName n) {
+                if (n.resolveBinding() instanceof IVariableBinding v && !localKeys.contains(v.getKey()) && !n.isDeclaration()) {
+                    String name = v.isField() ? (Modifier.isStatic(v.getModifiers()) ? "" : "this") : v.getName();
+                    if (!name.isEmpty() && captured.add(name)) { JsonObject c = new JsonObject(); c.addProperty("name", name); c.addProperty("mode", "by_value"); captures.add(c); }
+                }
+                return true;
+            }
+            @Override public boolean visit(ThisExpression n) {
+                if (captured.add("this")) { JsonObject c=new JsonObject(); c.addProperty("name","this");c.addProperty("mode","by_value");captures.add(c); } return true;
+            }
+        });
+        out.add("params",params); out.add("captures",captures);
+        JsonArray body = new JsonArray();
+        if (lambda.getBody() instanceof Block block) for (Object stmt : block.statements()) body.add(convertStatement((Statement)stmt));
+        else if (lambda.getBody() instanceof Expression expr) {
+            JsonObject stmt = new JsonObject();
+            boolean returnsVoid=binding != null && "void".equals(binding.getReturnType().getName());
+            stmt.addProperty("kind",returnsVoid ? "exprstmt" : "return"); stmt.add(returnsVoid ? "expr" : "value",convertExpression(expr));
+            body.add(SourceContext.attach(stmt,expr));
+        }
+        out.add("body",body); out.addProperty("fidelity",binding == null || binding.isRecovered() ? "inferred" : "source");
+        return out;
+    }
+
+    private static JsonObject convertMethodReference(MethodReference ref) {
+        JsonObject out=new JsonObject(); out.addProperty("kind","methodref");
+        out.add("targetType",SourceContext.type(ref.resolveTypeBinding()));
+        SourceContext.binding(out,ref.resolveMethodBinding());
+        if (ref instanceof ExpressionMethodReference r) {
+            // JDT parses a simple Type::method qualifier as an expression too;
+            // its binding distinguishes a type reference from a bound receiver.
+            boolean typeRef=r.getExpression() instanceof Name n && n.resolveBinding() instanceof ITypeBinding;
+            out.addProperty("referenceKind",typeRef ? "type" : "bound");
+            out.addProperty("callee",r.getName().getIdentifier());
+            if (typeRef) out.add("ownerType",SourceContext.type(r.getExpression().resolveTypeBinding()));
+            else out.add("receiver",convertExpression(r.getExpression()));
+            out.addProperty("evaluateReceiverAtCreation",!typeRef);
+        } else if (ref instanceof TypeMethodReference r) {
+            out.addProperty("referenceKind","type"); out.addProperty("callee",r.getName().getIdentifier());
+            out.add("ownerType",convertType(r.getType())); out.addProperty("evaluateReceiverAtCreation",false);
+        } else if (ref instanceof CreationReference r) {
+            out.addProperty("referenceKind","constructor"); out.addProperty("callee","new");
+            out.add("ownerType",convertType(r.getType())); out.addProperty("evaluateReceiverAtCreation",false);
+        } else if (ref instanceof SuperMethodReference r) {
+            out.addProperty("referenceKind","super"); out.addProperty("callee",r.getName().getIdentifier());
+            JsonObject receiver=new JsonObject();receiver.addProperty("kind","varref");
+            receiver.addProperty("name",r.getQualifier()==null ? "super" : r.getQualifier().toString()+".super");
+            out.add("receiver",receiver); out.addProperty("evaluateReceiverAtCreation",false);
+        }
+        if (ref.resolveMethodBinding()==null || ref.resolveMethodBinding().isRecovered()) out.addProperty("fidelity","inferred");
+        return out;
+    }
+
 }

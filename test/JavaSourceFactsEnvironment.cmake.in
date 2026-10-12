@@ -1,0 +1,20 @@
+# Loaded by CTest after GoogleTest has registered this target's cases.
+if(WIN32)
+    set(_JAVA_SOURCE_FACTS_PATH_SEPARATOR ";")
+else()
+    set(_JAVA_SOURCE_FACTS_PATH_SEPARATOR ":")
+endif()
+set(_JAVA_SOURCE_FACTS_PATH "@CMAKE_BINARY_DIR@${_JAVA_SOURCE_FACTS_PATH_SEPARATOR}$ENV{PATH}")
+# ENVIRONMENT is a CMake list; preserve Windows PATH separators inside its value.
+string(REPLACE ";" "\\;" _JAVA_SOURCE_FACTS_PATH "${_JAVA_SOURCE_FACTS_PATH}")
+foreach(_JAVA_TEST IN LISTS _JAVA_LANGUAGE_TESTS)
+    if(_JAVA_TEST MATCHES "^JavaSourceFactsTest\\." AND
+       NOT _JAVA_TEST STREQUAL "JavaSourceFactsTest.RejectsMalformedProjectModelBeforeParsing")
+        if(@_JAVA_SOURCE_FACTS_HAVE_EXTRACTOR@)
+            set_tests_properties("${_JAVA_TEST}" PROPERTIES
+                ENVIRONMENT "PATH=${_JAVA_SOURCE_FACTS_PATH}")
+        else()
+            set_tests_properties("${_JAVA_TEST}" PROPERTIES DISABLED TRUE)
+        endif()
+    endif()
+endforeach()

@@ -1,10 +1,10 @@
 // JavaExtractorFidelityTest: golden-fidelity tests for topo-extract-java.
 //
 // For each fixture directory under <TOPO_TEST_FIXTURES_DIR>/extractor_fidelity:
-//   - Input.java     — Java source file to extract from
+//   - <Type>.java    — Java source with its real public-type filename
 //   - request.json   — stdin template for the extractor (contains "{{INPUT}}"
 //                      placeholder which is substituted with the absolute path
-//                      of Input.java at test time)
+//                      of the source at test time)
 //   - expected.json  — golden TranspileModule output to compare against
 //
 // The test writes the substituted request.json to a temporary file, invokes
@@ -214,6 +214,17 @@ bool extractorEnvironmentAvailable(std::string* reasonOut) {
     return ::testing::AssertionFailure() << oss.str();
 }
 
+// Source locations and binding evidence are exercised by real-JDT tests.
+// Golden projection omits only those additive facts; semantic nodes, fidelity,
+// modifiers, and unsupported reasons remain exact comparisons.
+void stripProvenance(json& value) {
+    if (value.is_array()) for (auto& item : value) stripProvenance(item);
+    else if (value.is_object()) {
+        for (const char* key : {"sourceSpan", "rawSource", "resolvedQualifiedName", "resolvedSignature", "bindingResolved"}) value.erase(key);
+        for (auto& [key, child] : value.items()) stripProvenance(child);
+    }
+}
+
 // Run a single fixture case. Returns void; test body calls ASSERT/EXPECT
 // macros directly.
 void runFixtureCase(const std::string& fixtureName) {
@@ -225,11 +236,15 @@ void runFixtureCase(const std::string& fixtureName) {
 
     fs::path fixturesRoot(JAVA_FIDELITY_FIXTURES_DIR);
     fs::path fixtureDir = fixturesRoot / fixtureName;
-    fs::path inputJava = fixtureDir / "Input.java";
+    fs::path inputJava;
+    for (const auto& entry : fs::directory_iterator(fixtureDir)) if (entry.path().extension() == ".java") {
+        ASSERT_TRUE(inputJava.empty()) << "fixture must contain exactly one Java source";
+        inputJava = entry.path();
+    }
     fs::path requestTemplate = fixtureDir / "request.json";
     fs::path expectedPath = fixtureDir / "expected.json";
 
-    ASSERT_TRUE(fs::exists(inputJava)) << "missing Input.java: " << inputJava;
+    ASSERT_TRUE(fs::exists(inputJava)) << "missing Java source: " << inputJava;
     ASSERT_TRUE(fs::exists(requestTemplate)) << "missing request.json: " << requestTemplate;
 
     // Build a unique temp request file for this case.
@@ -260,6 +275,13 @@ void runFixtureCase(const std::string& fixtureName) {
         FAIL() << "failed to parse extractor stdout as JSON: " << e.what()
                << "\nraw output:\n" << stdoutOutput;
     }
+
+    ASSERT_TRUE(actual.value("analysisComplete", false)) << actual.value("diagnostics", json::array()).dump(2);
+    ASSERT_EQ(actual.value("sourceLevel", std::string()), "25");
+    ASSERT_TRUE(actual.at("diagnostics").empty());
+    ASSERT_FALSE(actual.value("runDegraded", true));
+    for (const char* key : {"schemaVersion", "sourceLevel", "analysisComplete", "diagnostics", "facts"}) actual.erase(key);
+    stripProvenance(actual);
 
     // Regen mode: overwrite expected.json with the actual output and pass.
     const char* regen = std::getenv("TOPO_REGEN_FIDELITY");
