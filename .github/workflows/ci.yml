@@ -152,22 +152,23 @@ jobs:
             --registered ctest-registered.json --junit ctest-results.xml \
             --summary ctest-summary.json --platform "$RUNNER_OS"
 
-      - name: JDT audit semantic tests
+      - name: JDT audit semantic and UTF-8 protocol tests
         working-directory: topo-check/extractor
-        run: ./gradlew test --tests "topo.extract.JavaAuditFactsTest" --no-daemon --console=plain
+        run: ./gradlew test --tests "topo.extract.JavaAuditFactsTest" --tests "topo.extract.MainEncodingTest" --no-daemon --console=plain
 
       - name: Require executed JDT audit cases
         run: |
           python - <<'PY'
           import xml.etree.ElementTree as ET
-          report = "topo-check/extractor/build/test-results/test/TEST-topo.extract.JavaAuditFactsTest.xml"
-          suite = ET.parse(report).getroot()
-          cases = suite.findall("testcase")
-          failed = sum(case.find("failure") is not None or case.find("error") is not None for case in cases)
-          skipped = sum(case.find("skipped") is not None for case in cases)
-          print(f"JDT audit: {len(cases)} cases, {failed} failures, {skipped} skipped")
-          if not cases or failed or skipped:
-              raise SystemExit("JDT audit coverage must execute and pass every selected case")
+          for name, minimum in (("JavaAuditFactsTest", 8), ("MainEncodingTest", 2)):
+              report = f"topo-check/extractor/build/test-results/test/TEST-topo.extract.{name}.xml"
+              suite = ET.parse(report).getroot()
+              cases = suite.findall("testcase")
+              failed = sum(case.find("failure") is not None or case.find("error") is not None for case in cases)
+              skipped = sum(case.find("skipped") is not None for case in cases)
+              print(f"{name}: {len(cases)} cases, {failed} failures, {skipped} skipped")
+              if len(cases) < minimum or failed or skipped:
+                  raise SystemExit("JDT audit and UTF-8 protocol cases must execute and pass")
           PY
 
       - name: Upload audit test evidence

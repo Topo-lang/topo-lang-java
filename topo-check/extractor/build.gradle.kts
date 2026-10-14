@@ -26,6 +26,7 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("topo.extractor.test.classpath", sourceSets.main.get().runtimeClasspath.asPath)
 }
 
 application {

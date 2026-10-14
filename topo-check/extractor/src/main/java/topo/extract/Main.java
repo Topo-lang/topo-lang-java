@@ -17,6 +17,7 @@ import com.google.gson.JsonParser;
 import org.eclipse.jdt.core.dom.*;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -40,7 +41,9 @@ public class Main {
             diagnostic(diagnostics, "error", "invalid-request", error.getMessage(), "", 0);
             result = failedRequest(diagnostics);
         }
-        System.out.println(GSON.toJson(result));
+        // This is a UTF-8 byte protocol, independent of the console code page.
+        System.out.write((GSON.toJson(result) + "\n").getBytes(StandardCharsets.UTF_8));
+        System.out.flush();
     }
 
     // Package-visible for deterministic real-JDT tests without replacing stdio.
@@ -190,11 +193,15 @@ public class Main {
         ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
         parser.setKind(ASTParser.K_COMPILATION_UNIT);
         parser.setResolveBindings(bindings); parser.setBindingsRecovery(true); parser.setStatementsRecovery(true);
-        parser.setEnvironment(classpath, sourcepath, null, true);
+        String[] sourceEncodings = new String[sourcepath.length];
+        Arrays.fill(sourceEncodings, StandardCharsets.UTF_8.name());
+        parser.setEnvironment(classpath, sourcepath, sourceEncodings, true);
         Map<String, String> options = new HashMap<>();
         org.eclipse.jdt.core.JavaCore.setComplianceOptions(level, options);
         parser.setCompilerOptions(options);
-        parser.createASTs(files.toArray(String[]::new), null, new String[0], new FileASTRequestor() {
+        String[] fileEncodings = new String[files.size()];
+        Arrays.fill(fileEncodings, StandardCharsets.UTF_8.name());
+        parser.createASTs(files.toArray(String[]::new), fileEncodings, new String[0], new FileASTRequestor() {
             @Override public void acceptAST(String sourceFilePath, CompilationUnit ast) {
                 units.put(Path.of(sourceFilePath).toAbsolutePath().normalize().toString(), ast);
             }
@@ -460,7 +467,7 @@ public class Main {
 
     private static String readStdin() throws IOException {
         StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             char[] buf = new char[8192];
             int read;
             while ((read = reader.read(buf)) != -1) {
