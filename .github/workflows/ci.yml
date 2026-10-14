@@ -12,8 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pin the upstream topo-core / topo-lang refs this build is tested against.
-  # Bump whenever a new compatible tag ships. TOPO_CLI_REF pins the
+  # Select upstream refs; each job resolves their immutable revisions
+  # before cache lookup and verifies freshly cloned sources. TOPO_CLI_REF pins the
   # downstream topo-cli checkout the verify-l2 job builds for its
   # TopoCheckRunner export (checker-e2e suite link dependency).
   TOPO_CORE_REF: main
@@ -76,21 +76,36 @@ jobs:
           vcpkgGitCommitId: "56bb2411609227288b70117ead2c47585ba07713"
 
       # Cache the upstream Topo install (topo-core + topo-lang) so PRs
-      # don't re-build them every time. Keyed on the two pinned refs so
-      # bumping invalidates the cache.
+      # reuse libraries only when both resolved upstream commits match.
+      - name: Resolve upstream revisions before restoring compiled libraries
+        uses: actions/github-script@v8
+        with:
+          script: |
+            for (const [repo, ref, variable] of [
+              ['topo-core', process.env.TOPO_CORE_REF, 'TOPO_CORE_SHA'],
+              ['topo-lang', process.env.TOPO_LANG_REF, 'TOPO_LANG_SHA'],
+            ]) {
+              const { data } = await github.rest.repos.getCommit({ owner: 'Topo-lang', repo, ref });
+              if (!/^[0-9a-f]{40}$/.test(data.sha)) throw new Error(`Invalid revision for ${repo}`);
+              core.exportVariable(variable, data.sha);
+              core.info(`Topo-lang/${repo}@${data.sha} (${ref})`);
+            }
+
       - name: Cache upstream topo install
         id: topo-cache
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/topo-install
-          key: topo-core-${{ env.TOPO_CORE_REF }}-lang-${{ env.TOPO_LANG_REF }}-${{ matrix.os }}-v3-audit
+          key: topo-core-${{ env.TOPO_CORE_SHA }}-lang-${{ env.TOPO_LANG_SHA }}-${{ matrix.os }}-v3-audit
 
       - name: Build & install topo-core (zero-LLVM, lang-less)
         if: steps.topo-cache.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch "${TOPO_CORE_REF}" \
-              https://github.com/topo-lang/topo-core.git \
-              "${RUNNER_TEMP}/topo-core-src"
+          git init "${RUNNER_TEMP}/topo-core-src"
+          git -C "${RUNNER_TEMP}/topo-core-src" remote add origin https://github.com/Topo-lang/topo-core.git
+          git -C "${RUNNER_TEMP}/topo-core-src" fetch --depth 1 origin "${TOPO_CORE_SHA}"
+          git -C "${RUNNER_TEMP}/topo-core-src" checkout --detach FETCH_HEAD
+          test "$(git -C "${RUNNER_TEMP}/topo-core-src" rev-parse HEAD)" = "${TOPO_CORE_SHA}"
           cmake -S "${RUNNER_TEMP}/topo-core-src" \
                 -B "${RUNNER_TEMP}/topo-core-build" \
                 -G Ninja \
@@ -103,9 +118,11 @@ jobs:
       - name: Build & install topo-lang
         if: steps.topo-cache.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch "${TOPO_LANG_REF}" \
-              https://github.com/topo-lang/topo-lang.git \
-              "${RUNNER_TEMP}/topo-lang-src"
+          git init "${RUNNER_TEMP}/topo-lang-src"
+          git -C "${RUNNER_TEMP}/topo-lang-src" remote add origin https://github.com/Topo-lang/topo-lang.git
+          git -C "${RUNNER_TEMP}/topo-lang-src" fetch --depth 1 origin "${TOPO_LANG_SHA}"
+          git -C "${RUNNER_TEMP}/topo-lang-src" checkout --detach FETCH_HEAD
+          test "$(git -C "${RUNNER_TEMP}/topo-lang-src" rev-parse HEAD)" = "${TOPO_LANG_SHA}"
           cmake -S "${RUNNER_TEMP}/topo-lang-src" \
                 -B "${RUNNER_TEMP}/topo-lang-build" \
                 -G Ninja \
@@ -314,19 +331,35 @@ jobs:
       # Same key as build-and-test's ubuntu leg — this job consumes the
       # identical upstream install (topo-cli goes to a separate, uncached
       # prefix below, so the cached content is unchanged).
+      - name: Resolve upstream revisions before restoring compiled libraries
+        uses: actions/github-script@v8
+        with:
+          script: |
+            for (const [repo, ref, variable] of [
+              ['topo-core', process.env.TOPO_CORE_REF, 'TOPO_CORE_SHA'],
+              ['topo-lang', process.env.TOPO_LANG_REF, 'TOPO_LANG_SHA'],
+            ]) {
+              const { data } = await github.rest.repos.getCommit({ owner: 'Topo-lang', repo, ref });
+              if (!/^[0-9a-f]{40}$/.test(data.sha)) throw new Error(`Invalid revision for ${repo}`);
+              core.exportVariable(variable, data.sha);
+              core.info(`Topo-lang/${repo}@${data.sha} (${ref})`);
+            }
+
       - name: Cache upstream topo install
         id: topo-cache
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/topo-install
-          key: topo-core-${{ env.TOPO_CORE_REF }}-lang-${{ env.TOPO_LANG_REF }}-ubuntu-24.04-v3-audit
+          key: topo-core-${{ env.TOPO_CORE_SHA }}-lang-${{ env.TOPO_LANG_SHA }}-ubuntu-24.04-v3-audit
 
       - name: Build & install topo-core (zero-LLVM, lang-less)
         if: steps.topo-cache.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch "${TOPO_CORE_REF}" \
-              https://github.com/topo-lang/topo-core.git \
-              "${RUNNER_TEMP}/topo-core-src"
+          git init "${RUNNER_TEMP}/topo-core-src"
+          git -C "${RUNNER_TEMP}/topo-core-src" remote add origin https://github.com/Topo-lang/topo-core.git
+          git -C "${RUNNER_TEMP}/topo-core-src" fetch --depth 1 origin "${TOPO_CORE_SHA}"
+          git -C "${RUNNER_TEMP}/topo-core-src" checkout --detach FETCH_HEAD
+          test "$(git -C "${RUNNER_TEMP}/topo-core-src" rev-parse HEAD)" = "${TOPO_CORE_SHA}"
           cmake -S "${RUNNER_TEMP}/topo-core-src" \
                 -B "${RUNNER_TEMP}/topo-core-build" \
                 -G Ninja \
@@ -339,9 +372,11 @@ jobs:
       - name: Build & install topo-lang
         if: steps.topo-cache.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch "${TOPO_LANG_REF}" \
-              https://github.com/topo-lang/topo-lang.git \
-              "${RUNNER_TEMP}/topo-lang-src"
+          git init "${RUNNER_TEMP}/topo-lang-src"
+          git -C "${RUNNER_TEMP}/topo-lang-src" remote add origin https://github.com/Topo-lang/topo-lang.git
+          git -C "${RUNNER_TEMP}/topo-lang-src" fetch --depth 1 origin "${TOPO_LANG_SHA}"
+          git -C "${RUNNER_TEMP}/topo-lang-src" checkout --detach FETCH_HEAD
+          test "$(git -C "${RUNNER_TEMP}/topo-lang-src" rev-parse HEAD)" = "${TOPO_LANG_SHA}"
           cmake -S "${RUNNER_TEMP}/topo-lang-src" \
                 -B "${RUNNER_TEMP}/topo-lang-build" \
                 -G Ninja \
