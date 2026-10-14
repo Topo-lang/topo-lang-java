@@ -83,7 +83,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/topo-install
-          key: topo-core-${{ env.TOPO_CORE_REF }}-lang-${{ env.TOPO_LANG_REF }}-${{ matrix.os }}-v2
+          key: topo-core-${{ env.TOPO_CORE_REF }}-lang-${{ env.TOPO_LANG_REF }}-${{ matrix.os }}-v3-audit
 
       - name: Build & install topo-core (zero-LLVM, lang-less)
         if: steps.topo-cache.outputs.cache-hit != 'true'
@@ -132,13 +132,56 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_PREFIX_PATH="${RUNNER_TEMP}/topo-install" \
               -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
-              -DTOPO_LANG_JAVA_BUILD_TESTS=ON
+              -DTOPO_LANG_JAVA_BUILD_TESTS=ON \
+              -DTOPO_LANG_JAVA_ENABLE_JVM_BACKEND=ON \
+              -DTOPO_GRADLE_JAVA_HOME="${JAVA_HOME}" \
+              "-DTOPO_LANG_JAVA_GRADLE_ARGS=--no-daemon --console=plain"
 
       - name: Build
         run: cmake --build build
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure --timeout 120
+        run: |
+          ctest --test-dir build --show-only=json-v1 > ctest-registered.json
+          ctest --test-dir build --output-on-failure --timeout 120 --no-tests=error --output-junit "${GITHUB_WORKSPACE}/ctest-results.xml"
+
+      - name: Verify CTest audit coverage and report unverified cases
+        if: always()
+        run: |
+          python .github/scripts/verify_audit_ctest.py \
+            --registered ctest-registered.json --junit ctest-results.xml \
+            --summary ctest-summary.json --platform "$RUNNER_OS"
+
+      - name: JDT audit semantic tests
+        working-directory: topo-check/extractor
+        run: ./gradlew test --tests "topo.extract.JavaAuditFactsTest" --no-daemon --console=plain
+
+      - name: Require executed JDT audit cases
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          report = "topo-check/extractor/build/test-results/test/TEST-topo.extract.JavaAuditFactsTest.xml"
+          suite = ET.parse(report).getroot()
+          cases = suite.findall("testcase")
+          failed = sum(case.find("failure") is not None or case.find("error") is not None for case in cases)
+          skipped = sum(case.find("skipped") is not None for case in cases)
+          print(f"JDT audit: {len(cases)} cases, {failed} failures, {skipped} skipped")
+          if not cases or failed or skipped:
+              raise SystemExit("JDT audit coverage must execute and pass every selected case")
+          PY
+
+      - name: Upload audit test evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: java-audit-tests-${{ matrix.os }}
+          path: |
+            ctest-registered.json
+            ctest-results.xml
+            ctest-summary.json
+            build/Testing/Temporary/LastTest.log
+            topo-check/extractor/build/test-results/test/*.xml
+          if-no-files-found: error
 
       # First CI surface for the runtime's Toolchain locator suite —
       # the ctest step above never runs Gradle. Scoped --tests filter:
@@ -275,7 +318,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/topo-install
-          key: topo-core-${{ env.TOPO_CORE_REF }}-lang-${{ env.TOPO_LANG_REF }}-ubuntu-24.04-v2
+          key: topo-core-${{ env.TOPO_CORE_REF }}-lang-${{ env.TOPO_LANG_REF }}-ubuntu-24.04-v3-audit
 
       - name: Build & install topo-core (zero-LLVM, lang-less)
         if: steps.topo-cache.outputs.cache-hit != 'true'
