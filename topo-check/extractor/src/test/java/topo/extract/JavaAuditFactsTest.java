@@ -5,6 +5,8 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
 import javax.tools.ToolProvider;
 import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.*;
 import java.util.jar.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -20,8 +22,32 @@ class JavaAuditFactsTest {
         JsonArray cp=new JsonArray();for(Path path:classpath)cp.add(path.toString());request.add("classpath",cp);
         JsonArray roots=new JsonArray();roots.add(file.getParent().toString());request.add("sourcepath",roots);return request;
     }
+    JsonObject extract(JsonObject request)throws Exception {
+        // The public extractor handles one request per JVM. Running that same
+        // lifecycle also releases JDT's retained classpath ZIP handles before
+        // callers replace dependencies or JUnit removes the fixture directory.
+        String classpath=System.getProperty("topo.extractor.test.classpath");
+        assertNotNull(classpath,"Gradle must supply the real extractor runtime classpath");
+        Path output=Files.createTempFile(root,"extract-",".json");
+        Path errors=Files.createTempFile(root,"extract-",".stderr");
+        Process process=new ProcessBuilder(
+            Path.of(System.getProperty("java.home"),"bin","java").toString(),
+            "-cp",classpath,"topo.extract.Main")
+            .redirectOutput(output.toFile()).redirectError(errors.toFile()).start();
+        try {
+            try(var input=process.getOutputStream()) {
+                input.write(request.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            assertTrue(process.waitFor(60,TimeUnit.SECONDS),"extractor exceeded timeout");
+            assertEquals(0,process.exitValue(),Files.readString(errors));
+            return JsonParser.parseString(Files.readString(output,StandardCharsets.UTF_8)).getAsJsonObject();
+        } finally {
+            if(process.isAlive())process.destroyForcibly().waitFor(10,TimeUnit.SECONDS);
+            Files.deleteIfExists(output);Files.deleteIfExists(errors);
+        }
+    }
     JsonObject run(Path file,Path...classpath)throws Exception {
-        JsonObject out=Main.extract(request(file,classpath));assertTrue(out.get("analysisComplete").getAsBoolean(),out.toString());
+        JsonObject out=extract(request(file,classpath));assertTrue(out.get("analysisComplete").getAsBoolean(),out.toString());
         return out.getAsJsonObject("facts").getAsJsonObject("audit");
     }
     List<JsonObject> entries(JsonObject audit,String name) {
@@ -41,14 +67,14 @@ class JavaAuditFactsTest {
         compiler.addProperty("javaHome",System.getProperty("java.home"));
         compiler.addProperty("targetRelease",Integer.toString(Runtime.version().feature()));
         request.add("compiler",compiler);
-        assertTrue(Main.extract(request).get("analysisComplete").getAsBoolean());
+        assertTrue(extract(request).get("analysisComplete").getAsBoolean());
         request.addProperty("sourceLevel","17");compiler.addProperty("targetRelease","17");
-        JsonObject oldRelease=Main.extract(request);
+        JsonObject oldRelease=extract(request);
         assertFalse(oldRelease.get("analysisComplete").getAsBoolean());
         assertTrue(oldRelease.getAsJsonArray("diagnostics").toString().contains("compiler-release-unverified"));
         request.addProperty("sourceLevel","25");compiler.addProperty("targetRelease","25");
         compiler.addProperty("javaHome",root.resolve("another-jdk").toString());
-        JsonObject otherJdk=Main.extract(request);
+        JsonObject otherJdk=extract(request);
         assertFalse(otherJdk.get("analysisComplete").getAsBoolean());
         assertTrue(otherJdk.getAsJsonArray("diagnostics").toString().contains("compiler-jdk-mismatch"));
     }
@@ -65,7 +91,7 @@ class JavaAuditFactsTest {
             """.formatted(missing.replace("\\","\\\\")));
         JsonObject audit=run(file);
         assertTrue(audit.get("complete").getAsBoolean(),audit.toString());
-        assertTrue(entries(audit,"dependencies").stream().anyMatch(e->e.get("path").getAsString().endsWith("/lib/modules")),audit.toString());
+        assertTrue(entries(audit,"dependencies").stream().anyMatch(e->Path.of(e.get("path").getAsString()).endsWith(Path.of("lib","modules"))),audit.toString());
         for(String op:List.of("downcallHandle","invokeExact")) {
             JsonObject call=nativeCall(audit,op);assertTrue(call.get("resolved").getAsBoolean(),call.toString());
             assertEquals(missing,call.get("library").getAsString());assertEquals("increment",call.get("symbol").getAsString());
@@ -128,11 +154,18 @@ class JavaAuditFactsTest {
         assertTrue(aTarget.startsWith(first.toRealPath()+"#"),aTarget);assertTrue(bTarget.startsWith(second.toRealPath()+"#"),bTarget);
         assertNotEquals(aTarget,bTarget);assertEquals(2,entries(a,"dependencies").stream().filter(e->e.get("path").getAsString().endsWith(".jar")).count());
         assertTrue(entries(a,"identities").stream().noneMatch(e->e.get("name").getAsString().startsWith("dep.")),"opaque dependencies are summarized, not copied into workspace identities");
+        String originalDigest=a.getAsJsonObject("inputDigests").get(first.toRealPath().toString()).getAsString();
+        Files.delete(first);
+        Files.copy(second,first);
+        JsonObject replaced=run(file,first,second);
+        assertNotEquals(originalDigest,replaced.getAsJsonObject("inputDigests").get(first.toRealPath().toString()).getAsString());
     }
     @Test void staticInitializersAndLambdaOwnersRemainSeparateAndNeverExecute()throws Exception {
         Path sentinel=root.resolve("initializer-ran");
         Path file=source("Initializers.java","""
-            import java.nio.file.*; class Initializers {
+            import java.nio.file.*;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit; class Initializers {
                 static {try {Files.writeString(Path.of("%s"),"ran");}catch(Exception e){throw new RuntimeException(e);}}
                 Runnable callback(){return () -> System.out.println("callback");}
             }
@@ -162,16 +195,16 @@ class JavaAuditFactsTest {
         metadata.addProperty("path",jar.toString());metadata.addProperty("kind","external");
         metadata.addProperty("coordinate","example:log");metadata.addProperty("version","1.0");
         JsonArray dependencies=new JsonArray();dependencies.add(metadata);request.add("dependencies",dependencies);
-        JsonObject audit=Main.extract(request).getAsJsonObject("facts").getAsJsonObject("audit");
+        JsonObject audit=extract(request).getAsJsonObject("facts").getAsJsonObject("audit");
         assertTrue(audit.get("complete").getAsBoolean(),audit.toString());
         assertTrue(entries(audit,"dependencies").stream().anyMatch(d->d.get("coordinate").getAsString().equals("example:log")));
         request.remove("dependencies");
-        JsonObject unknown=Main.extract(request).getAsJsonObject("facts").getAsJsonObject("audit");
+        JsonObject unknown=extract(request).getAsJsonObject("facts").getAsJsonObject("audit");
         assertFalse(unknown.get("complete").getAsBoolean());
         assertTrue(unknown.get("unresolved").toString().contains("ownership is unresolved"));
         Path local=file.getParent().resolve("vendor/log.jar");Files.createDirectories(local.getParent());Files.copy(jar,local);
         JsonObject localRequest=request(file,local);metadata.addProperty("path",local.toString());localRequest.add("dependencies",dependencies);
-        JsonObject project=Main.extract(localRequest).getAsJsonObject("facts").getAsJsonObject("audit");
+        JsonObject project=extract(localRequest).getAsJsonObject("facts").getAsJsonObject("audit");
         assertFalse(project.get("complete").getAsBoolean());
         assertTrue(entries(project,"dependencies").stream().anyMatch(d->d.get("project").getAsBoolean()));
     }
