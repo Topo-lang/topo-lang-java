@@ -1,6 +1,7 @@
 #include "JavaAuditRuntime.h"
 #include "topo/Distribution/Sha256.h"
 #include "topo/Platform/ToolResolution.h"
+#include "topo/Platform/TempFile.h"
 #include <cstdlib>
 #include <fstream>
 #include <set>
@@ -10,7 +11,7 @@ namespace fs = std::filesystem;
 namespace {
 fs::path physical(const fs::path& path) {
     std::error_code error;
-    auto result = fs::canonical(path, error);
+    auto result = platform::canonicalPath(path, error);
     if (error) throw std::runtime_error("analysis input is unavailable: " + path.string());
     return result;
 }
@@ -30,7 +31,10 @@ std::map<std::string, std::string> javaAuditRuntimeInventory(const fs::path& roo
     std::map<std::string, std::string> inventory;
     for (const auto& entry : fs::recursive_directory_iterator(root)) {
         if (inventory.size() >= 100000) throw std::runtime_error("Java runtime exceeds 100000 entries");
-        if (entry.is_symlink() && entry.is_directory())
+        std::error_code error;
+        const bool redirected = platform::isPathRedirect(entry.path(), error);
+        if (error) throw std::runtime_error("cannot inspect Java runtime entry: " + entry.path().string());
+        if (redirected && entry.is_directory())
             throw std::runtime_error("Java runtime directory symlink requires a self-contained installation: " + entry.path().string());
         const auto kind = entry.is_directory() ? "directory:" : entry.is_regular_file() ? "file:" : "";
         if (!*kind) throw std::runtime_error("unsupported Java runtime entry: " + entry.path().string());

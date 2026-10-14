@@ -35,6 +35,18 @@ void createRuntimeSymlink(const fs::path& target, const fs::path& link, std::err
     fs::create_symlink(target, link, error);
 #endif
 }
+void removeRuntimeSymlink(fs::path link) {
+    // Remove each fixture link while its target still exists. Some MinGW
+    // implementations cannot remove dangling native links during remove_all.
+#ifdef _WIN32
+    link.make_preferred();
+    ASSERT_TRUE(DeleteFileW(link.c_str())) << "cannot remove native link: " << GetLastError();
+#else
+    std::error_code error;
+    EXPECT_TRUE(fs::remove(link, error));
+    EXPECT_FALSE(error) << error.message();
+#endif
+}
 }
 class JavaSourceFactsTest : public ::testing::Test {
 protected:
@@ -752,6 +764,7 @@ TEST_F(JavaAuditRuntimeTest, ProjectSymlinkDoesNotGrantExternalReadAuthority) {
     ASSERT_FALSE(error) << error.message();
     request["classpath"] = {(project / "linked.jar").string()};
     EXPECT_THROW(resolveJavaAuditRuntime(launcher.string(), request, {}), std::runtime_error);
+    removeRuntimeSymlink(project / "linked.jar");
 }
 TEST_F(JavaAuditRuntimeTest, RejectsProjectControlledRuntimeEvenWithInputGrant) {
     std::ofstream(project / "extractor.jar") << "project runtime";
@@ -782,4 +795,5 @@ TEST_F(JavaAuditRuntimeTest, RejectsRuntimeModuleSymlinkIntoSubject) {
     std::error_code error; createRuntimeSymlink(project / "modules", modules, error);
     ASSERT_FALSE(error) << error.message();
     EXPECT_THROW(resolveJavaAuditRuntime(launcher.string(), request, {}), std::runtime_error);
+    removeRuntimeSymlink(modules);
 }
