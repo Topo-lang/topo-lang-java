@@ -129,7 +129,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
     # The C++ side (TranspileDriver::extractFunctions) resolves the
     # extractor through PipedProcess::start("topo-extract-java", ...) — so the
     # binary must be on PATH at runtime. Generate a posix sh launcher (and a
-    # Windows .cmd) that forwards stdin/stdout to `java -jar ... .jar`.
+    # Windows .cmd) that forwards stdin/stdout to `java -Xmx768m -jar ... .jar`.
     # The launcher is generated at configure time with the *install* layout
     # baked in so the installed copy resolves the staged jar at
     # share/topo-lang-java/lib/topo-extract-java-0.1.0.jar. A build-tree copy
@@ -149,7 +149,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
 "#!/bin/sh
 # topo-extract-java launcher (build-tree).
 # Forwards stdin/stdout to the Gradle-built extractor jar.
-exec \"${TOPO_GRADLE_JAVA_HOME}/bin/java\" -jar \"${_EXTRACT_JAR}\" \"$@\"
+exec \"${TOPO_GRADLE_JAVA_HOME}/bin/java\" -Xmx768m -jar \"${_EXTRACT_JAR}\" \"$@\"
 ")
     file(CHMOD ${_EXTRACT_LAUNCHER_BUILD} PERMISSIONS
         OWNER_READ OWNER_WRITE OWNER_EXECUTE
@@ -157,7 +157,7 @@ exec \"${TOPO_GRADLE_JAVA_HOME}/bin/java\" -jar \"${_EXTRACT_JAR}\" \"$@\"
         WORLD_READ WORLD_EXECUTE)
     file(WRITE ${_EXTRACT_LAUNCHER_BUILD_CMD}
 "@echo off
-\"${TOPO_GRADLE_JAVA_HOME}/bin/java.exe\" -jar \"${_EXTRACT_JAR}\" %*
+\"${TOPO_GRADLE_JAVA_HOME}/bin/java.exe\" -Xmx768m -jar \"${_EXTRACT_JAR}\" %*
 ")
 
     # Install-tree launcher — uses a relative path from <prefix>/bin to
@@ -178,7 +178,7 @@ if [ -n \"$JAVA_HOME\" ] && [ -x \"$JAVA_HOME/bin/java\" ]; then
 else
     JAVA=\"java\"
 fi
-exec \"$JAVA\" -jar \"$JAR\" \"$@\"
+exec \"$JAVA\" -Xmx768m -jar \"$JAR\" \"$@\"
 ")
     file(CHMOD ${_EXTRACT_LAUNCHER_INSTALL_SH} PERMISSIONS
         OWNER_READ OWNER_WRITE OWNER_EXECUTE
@@ -190,11 +190,37 @@ setlocal
 set SCRIPT_DIR=%~dp0
 set JAR=%SCRIPT_DIR%..\\share\\topo-lang-java\\lib\\topo-extract-java-0.1.0.jar
 if defined JAVA_HOME (
-    \"%JAVA_HOME%\\bin\\java.exe\" -jar \"%JAR%\" %*
+    \"%JAVA_HOME%\\bin\\java.exe\" -Xmx768m -jar \"%JAR%\" %*
 ) else (
-    java -jar \"%JAR%\" %*
+    java -Xmx768m -jar \"%JAR%\" %*
 )
 ")
+
+    # Audit launches a native JVM from data-only metadata, never this wrapper.
+    function(_topo_java_runtime_descriptor destination jar java_home)
+        set(_metadata "{\"schemaVersion\":1}")
+        foreach(_key jar javaHome)
+            if(_key STREQUAL "jar")
+                set(_value "${jar}")
+            else()
+                set(_value "${java_home}")
+            endif()
+            string(REPLACE "\\" "\\\\" _value "${_value}")
+            string(REPLACE "\"" "\\\"" _value "${_value}")
+            string(REPLACE "\n" "\\n" _value "${_value}")
+            string(REPLACE "\r" "\\r" _value "${_value}")
+            string(REPLACE "\t" "\\t" _value "${_value}")
+            string(JSON _metadata SET "${_metadata}" "${_key}" "\"${_value}\"")
+        endforeach()
+        file(WRITE "${destination}" "${_metadata}\n")
+    endfunction()
+    _topo_java_runtime_descriptor("${CMAKE_BINARY_DIR}/topo-extract-java.runtime.json"
+        "${_EXTRACT_JAR}" "${TOPO_GRADLE_JAVA_HOME}")
+    set(_EXTRACT_RUNTIME_INSTALL "${CMAKE_CURRENT_BINARY_DIR}/install/topo-extract-java.runtime.json")
+    _topo_java_runtime_descriptor("${_EXTRACT_RUNTIME_INSTALL}"
+        "../${CMAKE_INSTALL_DATADIR}/topo-lang-java/lib/topo-extract-java-0.1.0.jar" "")
+    install(FILES "${_EXTRACT_RUNTIME_INSTALL}" DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT topo-lang-java-jvm)
 
     # ── JVM artifact install rules ──────────────────────────────────
     # Layout under <prefix>:

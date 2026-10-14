@@ -9,6 +9,7 @@ endif()
 
 # Language and protocol tests; real JDT cases require the optional extractor.
 add_executable(topo-lang-java-tests
+    unit/WholeExternalTypeTest.cpp
     unit/JavaStubGeneratorTest.cpp
     unit/JavaEmitterStdlibTest.cpp
     unit/JavaAnalysisProviderTest.cpp
@@ -60,12 +61,23 @@ topo_set_compiler_flags(topo-lang-java-driver-input-trust-tests)
 gtest_discover_tests(topo-lang-java-driver-input-trust-tests DISCOVERY_TIMEOUT 30
     PROPERTIES LABELS "toolchain\;lang-java" TIMEOUT 30)
 
+add_executable(topo-lang-java-artifact-evidence-tests unit/JavaArtifactEvidenceTest.cpp)
+target_link_libraries(topo-lang-java-artifact-evidence-tests PRIVATE TopoJavaDriver TopoJavaAnalysis GTest::gtest_main)
+topo_set_compiler_flags(topo-lang-java-artifact-evidence-tests)
+gtest_discover_tests(topo-lang-java-artifact-evidence-tests DISCOVERY_TIMEOUT 30
+    PROPERTIES LABELS "toolchain\;lang-java\;realpath" TIMEOUT 120)
+
 # ── javac probe for the real-javac roundtrip test ────────────
 # Standalone build does not inherit topo-core's TopoToolProbes; probe locally.
 if(NOT DEFINED TOPO_HAS_JAVAC)
-    set(_javac_exe "")
-    if(DEFINED TOPO_GRADLE_JAVA_HOME AND EXISTS "${TOPO_GRADLE_JAVA_HOME}/bin/javac")
-        set(_javac_exe "${TOPO_GRADLE_JAVA_HOME}/bin/javac")
+    # A defined empty variable prevents find_program from searching. Clear
+    # both forms so a reconfigure probes the selected JDK (including .exe on
+    # Windows) or the current PATH instead of keeping a stale/empty result.
+    unset(_javac_exe)
+    unset(_javac_exe CACHE)
+    if(TOPO_GRADLE_JAVA_HOME)
+        find_program(_javac_exe NAMES javac
+            PATHS "${TOPO_GRADLE_JAVA_HOME}/bin" NO_DEFAULT_PATH)
     else()
         find_program(_javac_exe NAMES javac)
     endif()

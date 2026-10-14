@@ -29,6 +29,32 @@ final class SourceContext {
         return json;
     }
     static String file() { return file; }
+    static String owner(ASTNode n) {
+        for (ASTNode p=n instanceof EnumConstantDeclaration?n:n.getParent();p!=null;p=p.getParent()) {
+            if (p instanceof LambdaExpression)
+                return enclosingType(p) + ".<lambda>@" + p.getStartPosition();
+            if (p instanceof MethodDeclaration m)
+                return m.resolveBinding()==null ? enclosingType(m)+"."+m.getName() : qualified(m.resolveBinding());
+            if (p instanceof Initializer i)
+                return enclosingType(i)+(Modifier.isStatic(i.getModifiers())?".<clinit>@":".<init>@")+i.getStartPosition();
+            if (p instanceof FieldDeclaration f)
+                return enclosingType(f)+(Modifier.isStatic(f.getModifiers())?".<clinit>@":".<init>@")+f.getStartPosition();
+            if (p instanceof EnumConstantDeclaration)
+                return enclosingType(p)+".<clinit>@"+p.getStartPosition();
+        }
+        return "";
+    }
+    static String enclosingType(ASTNode n) {
+        for (ASTNode p=n.getParent();p!=null;p=p.getParent()) {
+            ITypeBinding b=p instanceof AbstractTypeDeclaration d ? d.resolveBinding()
+                : p instanceof AnonymousClassDeclaration a ? a.resolveBinding() : null;
+            if(b!=null) {
+                String name=b.getTypeDeclaration().getQualifiedName();
+                return name.isEmpty()?b.getBinaryName():name;
+            }
+        }
+        return "<unknown>";
+    }
     static int line(ASTNode n) { return unit.getLineNumber(n.getStartPosition()); }
     static String qualified(IMethodBinding b) {
         if (b == null || b.getDeclaringClass() == null) return "";

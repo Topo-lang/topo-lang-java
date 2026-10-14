@@ -16,8 +16,11 @@ class JavaAnalysisProvider : public LanguageAnalysisProvider {
 public:
     JavaAnalysisProvider();
     ~JavaAnalysisProvider() override;
+    bool configureAuditExecution(const AuditExecutionOptions& options, std::string& diagnostic) override;
     void configureAnalysis(const std::string& projectDir, const std::string& projectModelPath) override;
     std::vector<CheckDiagnostic> analysisDiagnostics() const override;
+    AuditFacts auditFacts(const std::vector<std::string>& sourceFiles) const override;
+    void configureNativeEvidence(const std::string& manifest, const std::map<std::string, std::string>& roots) override;
 
     std::unique_ptr<SymbolExtractor> createSymbolExtractor() override;
     std::unique_ptr<ImportExtractor> createImportExtractor() override;
@@ -47,6 +50,8 @@ public:
 private:
     std::unique_ptr<lsp::JdtBridge> bridge_;
     std::shared_ptr<JavaSourceFacts> facts_;
+    std::string nativeManifest_;
+    std::map<std::string, std::string> nativeRoots_;
 };
 
 /// Factory function (avoids incomplete-type issues when constructing via make_unique).

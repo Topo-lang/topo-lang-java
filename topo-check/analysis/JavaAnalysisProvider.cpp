@@ -1,5 +1,7 @@
 #include "JavaAnalysisProvider.h"
 #include "JavaSourceFacts.h"
+#include "JavaNativeEvidence.h"
+#include "topo/Distribution/Sha256.h"
 #include "JavaCallEdgeExtractor.h"
 #include "JavaCallSiteExtractor.h"
 #include "JavaImportExtractor.h"
@@ -20,8 +22,67 @@ namespace fs = std::filesystem;
 namespace topo::check {
 
 JavaAnalysisProvider::JavaAnalysisProvider() : facts_(std::make_shared<JavaSourceFacts>()) {}
+bool JavaAnalysisProvider::configureAuditExecution(const AuditExecutionOptions& options, std::string& diagnostic) {
+    return facts_->requireAuditIsolation(options.inputRoots, diagnostic);
+}
 void JavaAnalysisProvider::configureAnalysis(const std::string& projectDir,const std::string& modelPath) { facts_->configure(projectDir,modelPath); }
 std::vector<CheckDiagnostic> JavaAnalysisProvider::analysisDiagnostics() const { return facts_->diagnostics(); }
+void JavaAnalysisProvider::configureNativeEvidence(const std::string& manifest, const std::map<std::string, std::string>& roots) {
+    nativeManifest_ = manifest; nativeRoots_ = roots;
+}
+AuditFacts JavaAnalysisProvider::auditFacts(const std::vector<std::string>& sourceFiles) const {
+    facts_->load(sourceFiles);
+    auto audit = facts_->auditFacts();
+    if (audit.modelPath.empty()) {
+        audit.complete = false;
+        audit.unresolved.push_back("Java compile model not supplied; audit cannot establish the selected source set or classpath");
+    }
+    if (nativeManifest_.empty()) return audit;
+    build::evidence::Manifest manifest; std::string error;
+    std::error_code pathError;
+    auto manifestPath = fs::weakly_canonical(nativeManifest_, pathError).string();
+    auto manifestDigest = dist::sha256File(nativeManifest_);
+    if (!build::evidence::readManifest(nativeManifest_, manifest, error)) {
+        audit.complete = false; audit.unresolved.push_back(error); return audit;
+    }
+    build::evidence::RootMap roots;
+    for (const auto& [id, path] : nativeRoots_) roots.emplace(id, path);
+    // Validate every entry against the explicitly authorized evidence roots
+    // before any entry can reach parent-side report snapshots, even without FFM.
+    // Incomplete build coverage does not invalidate content-only evidence.
+    const auto verification = build::evidence::verifyManifest(manifest, roots);
+    if (!verification.integrity) {
+        audit.complete = false;
+        for (const auto& diagnostic : verification.diagnostics)
+            audit.unresolved.push_back("Native evidence integrity verification failed: " + diagnostic);
+        return audit;
+    }
+    audit.inputs.push_back(manifestPath);
+    audit.inputDigests[manifestPath] = manifestDigest;
+    for (const auto& record : manifest.nodes) {
+        auto addFiles = [&](const auto& files) {
+            for (const auto& entry : files) {
+                auto root = roots.find(entry.root); if (root == roots.end()) continue;
+                auto path = fs::weakly_canonical(root->second / entry.path, pathError).string();
+                if (pathError) continue;
+                audit.inputs.push_back(path); audit.inputDigests[path] = entry.sha256;
+            }
+        };
+        addFiles(record.action.inputs); addFiles(record.outputs); addFiles(record.metadata);
+    }
+    for (auto& binding : audit.nativeBindings) {
+        if (binding.library.empty()) continue;
+        binding = verifyJavaNativeBinding(binding, manifest, roots);
+        if (!binding.staticBinding) {
+            audit.complete = false;
+            audit.unresolved.insert(audit.unresolved.end(), binding.diagnostics.begin(), binding.diagnostics.end());
+        }
+    }
+    if (dist::sha256File(nativeManifest_) != manifestDigest) {
+        audit.complete = false; audit.unresolved.push_back("Native evidence changed during Java audit");
+    }
+    return audit;
+}
 JavaAnalysisProvider::~JavaAnalysisProvider() {
     shutdownLSP();
 }
@@ -51,7 +112,9 @@ std::vector<std::string> JavaAnalysisProvider::collectSourceFiles(
     const std::string& projectDir,
     const std::vector<std::string>& /*includeDirs*/) const {
     std::vector<std::string> files = facts_->sourceFiles();
-    if (!files.empty()) { facts_->load(files); return files; }
+    // Audit source selection comes only from the authorized explicit model;
+    // an empty or rejected selection must not turn into a filesystem scan.
+    if (!files.empty() || facts_->auditIsolationRequired()) { facts_->load(files); return files; }
     // Non-throwing scan (error_code construction + increment, same pattern
     // as the C++ provider and CheckRunner::discoverRelevantFiles): a source
     // root that is unexpectedly a plain file, unreadable, or vanishing must

@@ -11,9 +11,7 @@ final class SourceFacts {
     SourceFacts(JsonArray diagnostics) { this.diagnostics=diagnostics; }
     JsonObject json() { JsonObject j=new JsonObject();j.add("symbols",symbols);j.add("calls",calls);j.add("accesses",accesses);return j; }
     private static String owner(ASTNode n) {
-        for (ASTNode p=n.getParent();p!=null;p=p.getParent()) if (p instanceof MethodDeclaration m)
-            return m.resolveBinding()==null ? m.getName().getIdentifier() : SourceContext.qualified(m.resolveBinding());
-        return "";
+        return SourceContext.owner(n);
     }
     private JsonObject location(ASTNode n) {
         JsonObject out=SourceContext.attach(new JsonObject(),n);

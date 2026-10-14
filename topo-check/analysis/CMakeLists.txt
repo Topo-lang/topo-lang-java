@@ -1,6 +1,8 @@
 add_library(TopoJavaAnalysis
     JavaAnalysisProvider.cpp
+    JavaNativeEvidence.cpp
     extract/JavaSourceFacts.cpp
+    extract/JavaAuditRuntime.cpp
     stub/JavaStubGenerator.cpp
     catalog/JavaUnsafeCatalog.cpp
     extract/JavaCallEdgeExtractor.cpp
@@ -32,7 +34,7 @@ target_include_directories(TopoJavaAnalysis
 # TopoJavaLSP carries the local Java LSP bridge headers.
 target_link_libraries(TopoJavaAnalysis
     PUBLIC topo::core::TopoCheck TopoJavaLSP
-    PRIVATE topo::core::TopoPlatform)
+    PRIVATE topo::core::TopoPlatform topo::core::TopoDistribution)
 # TOPO_SOURCE_DIR is consulted by JavaSafePatterns.cpp for source-tree catalog
 # discovery (with runtime fallback when absent). Points one level above this
 # project — i.e. the meta-repo root that holds all topo-* clones as siblings

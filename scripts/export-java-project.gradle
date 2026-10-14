@@ -5,6 +5,8 @@ import groovy.json.JsonOutput
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 
 gradle.beforeProject { project ->
     project.plugins.withType(JavaPlugin) {
@@ -29,9 +31,24 @@ gradle.beforeProject { project ->
                 def files = sourceSet.get().allJava.files.findAll { it.isFile() && it.name.endsWith('.java') }
                 if (generated?.isDirectory()) files += project.fileTree(generated).matching { include '**/*.java' }.files
                 def paths = { items -> items.collect { it.canonicalPath }.unique().sort() }
+                def dependencies = [:]
+                def configuration = project.configurations.getByName(sourceSet.get().compileClasspathConfigurationName)
+                configuration.incoming.artifacts.artifacts.each { artifact ->
+                    def id = artifact.id.componentIdentifier
+                    def kind = id instanceof ProjectComponentIdentifier ? 'project' : id instanceof ModuleComponentIdentifier ? 'external' : 'unknown'
+                    def coordinate = id instanceof ModuleComponentIdentifier ? "${id.group}:${id.module}" : id.displayName
+                    def version = id instanceof ModuleComponentIdentifier ? id.version : ''
+                    dependencies[artifact.file.canonicalPath] = [path: artifact.file.canonicalPath, kind: kind, coordinate: coordinate, version: version]
+                }
+                // The first matching declaration on the actual compiler's
+                // classpath wins. Sorting this list can select an impostor.
+                def classpath = compile.classpath.files.collect { it.canonicalPath }.unique()
                 def model = [
                     sourceLevel: compile.options.release.orNull?.toString() ?: compile.sourceCompatibility,
-                    classpath: compile.classpath.files.collect { it.canonicalPath }.unique(),
+                    compiler: [javaHome: compile.javaCompiler.get().metadata.installationPath.asFile.canonicalPath,
+                               targetRelease: compile.options.release.orNull?.toString() ?: ''],
+                    classpath: classpath,
+                    dependencies: classpath.collect { path -> dependencies[path] ?: [path: path, kind: 'unknown', coordinate: '', version: ''] },
                     sourcepath: paths(roots),
                     files: paths(files)
                 ]

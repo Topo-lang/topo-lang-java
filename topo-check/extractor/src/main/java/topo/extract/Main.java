@@ -59,6 +59,16 @@ public class Main {
         if (request.has("sourceLevel") && (!request.get("sourceLevel").isJsonPrimitive() || !request.get("sourceLevel").getAsJsonPrimitive().isString()))
             diagnostic(diagnostics, "error", "invalid-request", "sourceLevel must be a string", "", 0);
         if (!diagnostics.isEmpty()) return failedRequest(diagnostics);
+        if (request.has("compiler")) {
+            JsonObject compiler = request.getAsJsonObject("compiler");
+            String home = compiler.get("javaHome").getAsString();
+            String release = compiler.get("targetRelease").getAsString();
+            if (!AuditOrigins.canonical(home).equals(AuditOrigins.canonical(System.getProperty("java.home"))))
+                diagnostic(diagnostics, "error", "compiler-jdk-mismatch", "The parser JDK differs from the selected compiler JDK", home, 0);
+            if (!release.isEmpty() && !release.equals(Integer.toString(Runtime.version().feature())))
+                diagnostic(diagnostics, "error", "compiler-release-unverified", "Historical --release standard-library bindings are not represented by this parser environment: " + release, "", 0);
+            if (!diagnostics.isEmpty()) return failedRequest(diagnostics);
+        }
         JsonArray allFunctions = new JsonArray();
         JsonArray allTypes = new JsonArray();
         Set<String> requestedFunctions = new HashSet<>();
@@ -68,7 +78,10 @@ public class Main {
         Map<String, String> sources = new LinkedHashMap<>();
         if (request.has("files")) for (JsonElement e : request.getAsJsonArray("files")) {
             String path = Path.of(e.getAsString()).toAbsolutePath().normalize().toString();
-            try { sources.put(path, Files.readString(Path.of(path))); files.add(path); }
+            try {
+                if(Files.size(Path.of(path))>16L*1024*1024)throw new IOException("Java source exceeds 16 MiB limit");
+                sources.put(path, Files.readString(Path.of(path))); files.add(path);
+            }
             catch (IOException ex) { diagnostic(diagnostics, "error", "source-unreadable", ex.getMessage(), path, 0); }
         }
         String level = request.has("sourceLevel") ? request.get("sourceLevel").getAsString() : "25";
@@ -92,6 +105,7 @@ public class Main {
             sourcepath = roots.toArray(String[]::new);
         }
         Map<String, CompilationUnit> units = new LinkedHashMap<>();
+        AuditSnapshot snapshot = new AuditSnapshot(sources, classpath, sourcepath);
         if (!files.isEmpty()) {
             try { parseBatch(files, level, classpath, sourcepath, !bindingResolutionDegraded, units); }
             catch (OutOfMemoryError oom) {
@@ -103,6 +117,7 @@ public class Main {
             }
         }
         SourceFacts facts = new SourceFacts(diagnostics);
+        JavaAuditFacts audit = new JavaAuditFacts(units, classpath, sourcepath, request);
         for (String file : files) {
             CompilationUnit cu = units.get(file);
             if (cu == null) {
@@ -126,6 +141,7 @@ public class Main {
                 fn.getAsJsonArray("unsupported").add(errors ? "Java compilation errors; see diagnostics" : "JDT bindings unavailable after OutOfMemoryError");
             }
             facts.collect(cu);
+            audit.collect(cu);
         }
         Set<String> got = new HashSet<>();
         for (JsonElement fn : allFunctions) got.add(fn.getAsJsonObject().get("qualifiedName").getAsString());
@@ -137,7 +153,11 @@ public class Main {
         module.addProperty("schemaVersion", 2);
         module.addProperty("sourceLevel", level);
         module.add("types", allTypes); module.add("functions", allFunctions);
-        module.add("facts", facts.json()); module.add("diagnostics", diagnostics);
+        JsonObject sourceFacts = facts.json();
+        JsonObject auditJson = audit.json(diagnostics.isEmpty());
+        snapshot.finish(auditJson);
+        sourceFacts.add("audit", auditJson);
+        module.add("facts", sourceFacts); module.add("diagnostics", diagnostics);
         module.addProperty("analysisComplete", diagnostics.isEmpty());
         module.addProperty("runDegraded", bindingResolutionDegraded);
         if (bindingResolutionDegraded) module.addProperty("degradationReason",
@@ -444,6 +464,7 @@ public class Main {
             char[] buf = new char[8192];
             int read;
             while ((read = reader.read(buf)) != -1) {
+                if(sb.length()+read>8*1024*1024)throw new IOException("Java request exceeds 8 MiB limit");
                 sb.append(buf, 0, read);
             }
         }

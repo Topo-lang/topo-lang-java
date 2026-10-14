@@ -5,6 +5,12 @@
 namespace topo::check {
 
 UnsafeLevel JavaUnsafeCatalog::classifyCall(const std::string& pattern) {
+    // Foreign-memory and native-linker calls cross the Java safety boundary.
+    // Bound JDT calls carry the full name; legacy syntax extractors may carry
+    // the class-qualified spelling instead.
+    if (pattern.rfind("java.lang.foreign.", 0) == 0) return UnsafeLevel::Escape;
+    for (const char* owner : {"Linker.", "SymbolLookup.", "MemorySegment.", "Arena."})
+        if (pattern.rfind(owner, 0) == 0) return UnsafeLevel::Escape;
     // Level 4: Language escape mechanisms
     static const std::unordered_set<std::string> escape = {
         "Class.forName", "ClassLoader.loadClass",
@@ -93,6 +99,8 @@ UnsafeLevel JavaUnsafeCatalog::classifyCall(const std::string& pattern) {
 
 UnsafeLevel JavaUnsafeCatalog::classifyImport(const std::string& path) {
     // Level 4: Language escape mechanisms
+    if (path == "java.lang.foreign" || path.rfind("java.lang.foreign.", 0) == 0)
+        return UnsafeLevel::Escape;
     if (path.find("java.lang.invoke") != std::string::npos) return UnsafeLevel::Escape;
     if (path.find("javax.naming") != std::string::npos) return UnsafeLevel::Escape;
     if (path.find("javax.script") != std::string::npos) return UnsafeLevel::Escape;

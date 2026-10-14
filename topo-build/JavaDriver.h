@@ -2,20 +2,37 @@
 #define TOPO_JVM_JAVADRIVER_H
 
 #include "topo/Basic/BuildTypes.h"
+#include "topo/Build/ArtifactEvidence.h"
 
 #include <string>
 #include <vector>
 
 namespace topo::jvm {
 
+// The caller supplies roots for reusable evidence and verified parent stages.
+// With no options the driver captures local command evidence using inferred
+// input/output roots; that evidence remains incomplete and unauthenticated.
+struct JavaEvidenceOptions {
+    build::evidence::RootMap roots;
+    std::vector<build::evidence::Manifest> parents;
+    std::string manifestPath;
+    std::vector<std::string> extraInputs;
+};
+
 struct JavaCompileResult {
     int exitCode = 0;
     std::string classDir; // output directory containing .class files
+    std::string evidencePath;
+    build::evidence::RootMap evidenceRoots;
+    std::vector<std::string> evidenceDiagnostics;
 };
 
 struct JavaPackageResult {
     int exitCode = 0;
     std::string jarPath;
+    std::string evidencePath;
+    build::evidence::RootMap evidenceRoots;
+    std::vector<std::string> evidenceDiagnostics;
 };
 
 /// Compile .java sources to .class files using javac.
@@ -30,17 +47,21 @@ JavaCompileResult compileJava(const std::vector<std::string>& sources,
                               const std::string& targetVersion,
                               ::topo::BuildMode buildMode,
                               const std::string& javaHome,
-                              bool verbose);
+                              bool verbose,
+                              const JavaEvidenceOptions* evidence = nullptr);
 
 /// Package .class files into a JAR.
 JavaPackageResult packageJar(const std::string& classDir,
                              const std::string& outputJar,
                              const std::string& mainClass,
                              const std::string& javaHome,
-                             bool verbose);
+                             bool verbose,
+                             const JavaEvidenceOptions* evidence = nullptr);
 
 /// Resolve the path to a Java tool (javac, jar, java) from javaHome or JAVA_HOME.
 std::string resolveJavaTool(const std::string& toolName, const std::string& javaHome);
+/// The selected source files used by both the actual compiler and check model.
+std::vector<std::string> collectJavaSourceFiles(const std::vector<std::string>& sources);
 
 // ---------------------------------------------------------------------------
 // JavaDriver input-trust boundary

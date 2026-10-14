@@ -4,11 +4,13 @@
 // topo::platform::runProcess() for cross-platform subprocess execution.
 
 #include "JavaDriver.h"
+#include "JavaBuildEvidence.h"
 
 #include "topo/Platform/Platform.h"
 #include "topo/Platform/Process.h"
 
 #include <cctype>
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -169,19 +171,25 @@ std::string resolveJavaTool(const std::string& toolName, const std::string& java
 // collectJavaFiles — recursively discover .java files under source dirs
 // ---------------------------------------------------------------------------
 
-static std::vector<std::string> collectJavaFiles(const std::vector<std::string>& sourceDirs) {
+std::vector<std::string> collectJavaSourceFiles(const std::vector<std::string>& sourceDirs) {
     std::vector<std::string> files;
     for (const auto& dir : sourceDirs) {
         std::error_code ec;
+        if (fs::is_regular_file(dir, ec) && fs::path(dir).extension() == ".java") {
+            files.push_back(fs::weakly_canonical(dir).string());
+            continue;
+        }
         for (auto& entry : fs::recursive_directory_iterator(dir, ec)) {
             if (entry.is_regular_file() && entry.path().extension() == ".java") {
-                files.push_back(entry.path().string());
+                files.push_back(fs::weakly_canonical(entry.path()).string());
             }
         }
         if (ec) {
             std::cerr << "warning: failed to traverse source directory '" << dir << "': " << ec.message() << "\n";
         }
     }
+    std::sort(files.begin(), files.end());
+    files.erase(std::unique(files.begin(), files.end()), files.end());
     return files;
 }
 
@@ -195,7 +203,7 @@ JavaCompileResult compileJava(const std::vector<std::string>& sources,
                               const std::string& targetVersion,
                               ::topo::BuildMode buildMode,
                               const std::string& javaHome,
-                              bool verbose) {
+                              bool verbose, const JavaEvidenceOptions* evidence) {
     JavaCompileResult result;
 
     // Boundary checks — the driver is the single entry point that
@@ -220,7 +228,7 @@ JavaCompileResult compileJava(const std::vector<std::string>& sources,
     std::string javac = resolveJavaTool("javac", javaHome);
 
     // Discover .java files recursively from source directories
-    std::vector<std::string> javaFiles = collectJavaFiles(sources);
+    std::vector<std::string> javaFiles = collectJavaSourceFiles(sources);
     if (javaFiles.empty()) {
         std::cerr << "error: no .java source files found\n";
         result.exitCode = 1;
@@ -269,7 +277,20 @@ JavaCompileResult compileJava(const std::vector<std::string>& sources,
         std::cerr << "\n";
     }
 
-    auto pr = topo::platform::runProcess(javac, args, verbose);
+    std::vector<std::string> evidenceInputs = javaFiles;
+    if (!classpath.empty()) {
+        std::size_t start = 0;
+        while (start < classpath.size()) {
+            auto end = classpath.find(kClasspathSeparator, start);
+            evidenceInputs.push_back(classpath.substr(start, end == std::string::npos ? end : end - start));
+            if (end == std::string::npos) break;
+            start = end + 1;
+        }
+    }
+    auto pr = runJavaStage("javac", javac, args, evidenceInputs, outputDir, true, verbose, evidence);
+    result.evidencePath = pr.path;
+    result.evidenceRoots = std::move(pr.roots);
+    result.evidenceDiagnostics = std::move(pr.diagnostics);
     result.exitCode = pr.exitCode;
     if (result.exitCode == 0) {
         result.classDir = outputDir;
@@ -285,7 +306,7 @@ JavaPackageResult packageJar(const std::string& classDir,
                              const std::string& outputJar,
                              const std::string& mainClass,
                              const std::string& javaHome,
-                             bool verbose) {
+                             bool verbose, const JavaEvidenceOptions* evidence) {
     JavaPackageResult result;
 
     // Boundary checks. `mainClass` is the manifest-injection vector —
@@ -327,7 +348,10 @@ JavaPackageResult packageJar(const std::string& classDir,
         std::cerr << "\n";
     }
 
-    auto pr = topo::platform::runProcess(jar, args, verbose);
+    auto pr = runJavaStage("jar-package", jar, args, {classDir}, outputJar, false, verbose, evidence);
+    result.evidencePath = pr.path;
+    result.evidenceRoots = std::move(pr.roots);
+    result.evidenceDiagnostics = std::move(pr.diagnostics);
     result.exitCode = pr.exitCode;
     if (result.exitCode == 0) {
         result.jarPath = outputJar;
