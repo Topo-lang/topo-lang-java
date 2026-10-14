@@ -7,14 +7,9 @@
 //                      of the source at test time)
 //   - expected.json  — golden TranspileModule output to compare against
 //
-// The test writes the substituted request.json to a temporary file, invokes
-// `java -jar <TOPO_EXTRACT_JAVA_JAR>` with stdin redirected from that file,
-// captures stdout, parses it as JSON, and compares against expected.json.
-//
-// Unlike a live PipedProcess approach, stdin is redirected from a real file
-// (via popen with shell redirection), which guarantees EOF is sent to the
-// extractor and avoids the deadlock that would occur if stdin were written
-// and left open by the parent.
+// The test submits the request through the platform bounded-process API to
+// `java -jar <TOPO_EXTRACT_JAVA_JAR>`. Input is staged with EOF before spawn,
+// and stdout/stderr are captured with finite limits on every platform.
 //
 // Regeneration mode: set the environment variable TOPO_REGEN_FIDELITY=1
 // to overwrite expected.json with the actual output on a PASS path. This is
@@ -23,6 +18,7 @@
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
+#include "topo/Platform/Process.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -34,15 +30,11 @@
 
 #ifdef _WIN32
 #include <process.h>
-#define TOPO_POPEN _popen
-#define TOPO_PCLOSE _pclose
 static int topo_getpid() {
     return _getpid();
 }
 #else
 #include <unistd.h>
-#define TOPO_POPEN popen
-#define TOPO_PCLOSE pclose
 static int topo_getpid() {
     return getpid();
 }
@@ -132,55 +124,20 @@ std::string resolveJavaLauncher() {
     return "java";
 }
 
-// Invoke `java -jar <jar>` reading stdin from requestFile and capture stdout.
-// Returns the captured stdout; on failure (java not found, nonzero exit,
-// empty output), returns empty string and sets *okOut to false.
-std::string runExtractor(const fs::path& jarPath,
-                         const fs::path& requestFile,
-                         bool* okOut) {
-    *okOut = false;
-
-    std::string java = resolveJavaLauncher();
-
-    // Build a shell command with redirected stdin. We use popen so stdin
-    // redirection is handled by the shell — this avoids the fork/pipe
-    // deadlock that would otherwise arise from leaving stdin open.
-    std::ostringstream cmd;
-#ifdef _WIN32
-    cmd << "\"" << java << "\" -jar \"" << jarPath.string()
-        << "\" < \"" << requestFile.string() << "\" 2> NUL";
-#else
-    cmd << "'" << java << "' -jar '" << jarPath.string()
-        << "' < '" << requestFile.string() << "' 2>/dev/null";
-#endif
-
-    FILE* fp = TOPO_POPEN(cmd.str().c_str(), "r");
-    if (!fp) {
-        return {};
-    }
-
-    std::string output;
-    char buf[4096];
-    size_t n;
-    while ((n = std::fread(buf, 1, sizeof(buf), fp)) > 0) {
-        output.append(buf, n);
-    }
-
-    int rc = TOPO_PCLOSE(fp);
-    if (rc != 0) {
-        // Nonzero exit. The output may still be valid, but more likely
-        // the extractor failed (e.g. java not on PATH, jar missing,
-        // JDT OOM). Signal failure to the caller.
-        return output;
-    }
-
-    *okOut = true;
-    return output;
+// Use argument-vector process creation so paths containing spaces are passed
+// unchanged; stderr stays available if the real extractor rejects the request.
+topo::platform::BoundedProcessResult runExtractor(const fs::path& jarPath,
+                                                   const fs::path& requestFile) {
+    topo::platform::ProcessCaptureLimits limits;
+    limits.timeoutMs = 60000;
+    limits.stdinInput = readFileToString(requestFile);
+    return topo::platform::runProcessCaptureBounded(
+        resolveJavaLauncher(), {"-jar", jarPath.string()}, limits);
 }
 
 // Returns true if `java` appears to be usable on this system. We don't
 // try to exec it; we only check that PATH is set and that the configured
-// jar file exists on disk. The test body will SKIP if either is missing.
+// jar file exists on disk. Registered fidelity tests require both prerequisites.
 bool extractorEnvironmentAvailable(std::string* reasonOut) {
     fs::path jar(TOPO_EXTRACT_JAVA_JAR);
     if (!fs::exists(jar)) {
@@ -228,11 +185,8 @@ void stripProvenance(json& value) {
 // Run a single fixture case. Returns void; test body calls ASSERT/EXPECT
 // macros directly.
 void runFixtureCase(const std::string& fixtureName) {
-    std::string skipReason;
-    if (!extractorEnvironmentAvailable(&skipReason)) {
-        GTEST_SKIP() << skipReason;
-        return;
-    }
+    std::string environmentError;
+    ASSERT_TRUE(extractorEnvironmentAvailable(&environmentError)) << environmentError;
 
     fs::path fixturesRoot(JAVA_FIDELITY_FIXTURES_DIR);
     fs::path fixtureDir = fixturesRoot / fixtureName;
@@ -255,15 +209,18 @@ void runFixtureCase(const std::string& fixtureName) {
         << "failed to build request file";
 
     // Run the extractor.
-    bool ok = false;
-    std::string stdoutOutput = runExtractor(TOPO_EXTRACT_JAVA_JAR, tmpRequest, &ok);
+    const auto result = runExtractor(TOPO_EXTRACT_JAVA_JAR, tmpRequest);
+    const auto& stdoutOutput = result.stdoutOutput;
 
     // Clean up temp request file regardless of outcome.
     std::error_code ec;
     fs::remove(tmpRequest, ec);
 
-    ASSERT_TRUE(ok) << "extractor invocation failed for fixture " << fixtureName
-                    << "; stdout was:\n" << stdoutOutput;
+    ASSERT_EQ(result.failure, topo::platform::ProcessCaptureFailure::None)
+        << "extractor process failed for fixture " << fixtureName << ": " << result.diagnostic
+        << "\nstderr:\n" << result.stderrOutput;
+    ASSERT_EQ(result.exitCode, 0) << "extractor invocation failed for fixture " << fixtureName
+        << "; stderr was:\n" << result.stderrOutput << "\nstdout was:\n" << stdoutOutput;
     ASSERT_FALSE(stdoutOutput.empty())
         << "extractor produced empty stdout for fixture " << fixtureName;
 

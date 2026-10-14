@@ -135,6 +135,7 @@ if(TOPO_LANG_JAVA_ENABLE_JVM_BACKEND)
     target_link_libraries(topo-lang-java-extractor-fidelity-tests PRIVATE
         GTest::gtest_main
         nlohmann_json::nlohmann_json
+        topo::core::TopoPlatform
     )
     target_compile_definitions(topo-lang-java-extractor-fidelity-tests PRIVATE
         TOPO_EXTRACT_JAVA_JAR="${_JAVA_EXTRACT_JAR}"

@@ -25,10 +25,12 @@ void createNativeEvidenceLink(const fs::path& target, const fs::path& link, bool
 #ifdef _WIN32
     // Match the native reparse-point fixtures in ArtifactEvidenceTest.
     const DWORD kind = directory ? SYMBOLIC_LINK_FLAG_DIRECTORY : 0;
-    if (CreateSymbolicLinkW(link.c_str(), target.c_str(), kind | 0x2)) { error.clear(); return; }
+    auto nativeTarget = target; nativeTarget.make_preferred();
+    auto nativeLink = link; nativeLink.make_preferred();
+    if (CreateSymbolicLinkW(nativeLink.c_str(), nativeTarget.c_str(), kind | 0x2)) { error.clear(); return; }
     auto code = GetLastError();
     if (code == ERROR_INVALID_PARAMETER || code == ERROR_PRIVILEGE_NOT_HELD) {
-        if (CreateSymbolicLinkW(link.c_str(), target.c_str(), kind)) { error.clear(); return; }
+        if (CreateSymbolicLinkW(nativeLink.c_str(), nativeTarget.c_str(), kind)) { error.clear(); return; }
         code = GetLastError();
     }
     error = std::error_code(static_cast<int>(code), std::system_category());
@@ -47,7 +49,7 @@ protected:
     }
     void TearDown() override { std::error_code ec; fs::remove_all(root, ec); }
     fs::path write(const std::string& name, const std::string& text) {
-        auto path = root / name; fs::create_directories(path.parent_path()); std::ofstream(path) << text; return path;
+        auto path = root / name; fs::create_directories(path.parent_path()); std::ofstream(path) << text; return fs::canonical(path);
     }
     void rejectedRedirect(const std::string& slot, bool intermediate = false) {
         auto approved = root / "approved";

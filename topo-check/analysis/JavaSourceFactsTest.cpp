@@ -10,9 +10,32 @@
 #include <fstream>
 #include <chrono>
 #include <algorithm>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 namespace fs = std::filesystem;
 using namespace topo::check;
 using Json = nlohmann::json;
+namespace {
+void createRuntimeSymlink(const fs::path& target, const fs::path& link, std::error_code& error) {
+#ifdef _WIN32
+    auto nativeTarget = target; nativeTarget.make_preferred();
+    auto nativeLink = link; nativeLink.make_preferred();
+    if (CreateSymbolicLinkW(nativeLink.c_str(), nativeTarget.c_str(), 0x2)) { error.clear(); return; }
+    auto code = GetLastError();
+    if (code == ERROR_INVALID_PARAMETER || code == ERROR_PRIVILEGE_NOT_HELD) {
+        if (CreateSymbolicLinkW(nativeLink.c_str(), nativeTarget.c_str(), 0)) { error.clear(); return; }
+        code = GetLastError();
+    }
+    error = std::error_code(static_cast<int>(code), std::system_category());
+#else
+    fs::create_symlink(target, link, error);
+#endif
+}
+}
 class JavaSourceFactsTest : public ::testing::Test {
 protected:
     fs::path root;
@@ -27,7 +50,7 @@ protected:
     }
     fs::path write(const std::string& file, const std::string& text) {
         auto p = root / file;
-        std::ofstream(p) << text;
+        std::ofstream(p, std::ios::binary) << text;
         return p;
     }
 };
@@ -254,7 +277,7 @@ TEST_F(JavaSourceFactsProtocolTest, LimitsRequestsAndResponsesBeforePublishingFa
 
 TEST_F(JavaSourceFactsProtocolTest, BoundsStalledExtractorAndRejectsNonzeroExit) {
     auto script = root / (topo::platform::IsWindows ? "topo-extract-java.cmd" : "topo-extract-java");
-    std::ofstream(script) << (topo::platform::IsWindows
+    std::ofstream(script, std::ios::binary) << (topo::platform::IsWindows
         ? "@echo off\r\nmore > nul\r\n:again\r\ngoto again\r\n"
         : "#!/bin/sh\ncat > /dev/null\nwhile :; do :; done\n");
     JavaSourceFacts stalled({100, 1024, 1024});
@@ -262,8 +285,9 @@ TEST_F(JavaSourceFactsProtocolTest, BoundsStalledExtractorAndRejectsNonzeroExit)
     stalled.load({source.string()});
     EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds(5));
     ASSERT_EQ(stalled.diagnostics().size(), 1u);
-    EXPECT_NE(stalled.diagnostics()[0].message.find("time limit"), std::string::npos);
-    std::ofstream(script) << (topo::platform::IsWindows
+    EXPECT_NE(stalled.diagnostics()[0].message.find("time limit"), std::string::npos)
+        << stalled.diagnostics()[0].message;
+    std::ofstream(script, std::ios::binary) << (topo::platform::IsWindows
         ? "@echo off\r\nmore > nul\r\ntype \"%~dp0response.json\"\r\nexit /b 17\r\n"
         : "#!/bin/sh\ncat > /dev/null\ncat \"${0%/*}/response.json\"\nexit 17\n");
     write("response.json", validResponse().dump());
@@ -276,7 +300,7 @@ TEST_F(JavaSourceFactsProtocolTest, BoundsStalledExtractorAndRejectsNonzeroExit)
 
 TEST_F(JavaSourceFactsProtocolTest, BoundsDiagnosticStreamBeforePublishingFacts) {
     auto script = root / (topo::platform::IsWindows ? "topo-extract-java.cmd" : "topo-extract-java");
-    std::ofstream(script) << (topo::platform::IsWindows
+    std::ofstream(script, std::ios::binary) << (topo::platform::IsWindows
         ? "@echo off\r\nmore > nul\r\necho diagnostic-output-that-exceeds-the-limit 1>&2\r\ntype \"%~dp0response.json\"\r\n"
         : "#!/bin/sh\ncat > /dev/null\nprintf 'diagnostic-output-that-exceeds-the-limit' >&2\ncat \"${0%/*}/response.json\"\n");
     write("response.json", validResponse().dump());
@@ -564,7 +588,7 @@ TEST_F(JavaSourceFactsProtocolTest, AuditKeepsEmptyModelSelectionWhileOrdinaryCh
     write("response.json", validResponse().dump());
     auto ordinary = createJavaAnalysisProvider();
     ordinary->configureAnalysis(root.string(), "");
-    EXPECT_EQ(ordinary->collectSourceFiles(root.string(), {}), std::vector<std::string>{scanned.string()});
+    EXPECT_EQ(ordinary->collectSourceFiles(root.string(), {}), std::vector<std::string>{scanned.make_preferred().string()});
     EXPECT_TRUE(fs::exists(root / "request.json"));
 }
 TEST_F(JavaSourceFactsTest, AuditRequiresAnExplicitCompileModel) {
@@ -669,7 +693,7 @@ class NativeApi {
 #include "extract/JavaAuditRuntime.h"
 class JavaAuditRuntimeTest : public JavaSourceFactsTest {
 protected:
-    fs::path project, launcher, home, jar;
+    fs::path project, launcher, home, jar, java;
     Json request;
     void SetUp() override {
         JavaSourceFactsTest::SetUp();
@@ -686,7 +710,8 @@ protected:
         std::ofstream(home / "lib/libjvm.dylib") << "native runtime bytes";
         std::ofstream(home / "lib/classes.jsa") << "shared classes";
         std::ofstream(home / "lib/jvm.cfg") << "JVM startup configuration";
-        std::ofstream(home / "bin/java") << "native executable bytes";
+        java = home / "bin" / (topo::platform::IsWindows ? "java.exe" : "java");
+        std::ofstream(java) << "native executable bytes";
         descriptor();
         request = {{"projectRoot", project.string()}, {"files", { (project / "Input.java").string() }}};
     }
@@ -697,7 +722,7 @@ protected:
 };
 TEST_F(JavaAuditRuntimeTest, ResolvesRelativeDescriptorAndBindsNativeRuntime) {
     auto runtime = resolveJavaAuditRuntime(launcher.string(), request, {});
-    EXPECT_EQ(runtime.executable, fs::canonical(home / "bin/java").string());
+    EXPECT_EQ(runtime.executable, fs::canonical(java).string());
     EXPECT_EQ(runtime.arguments.back(), fs::canonical(jar).string());
     EXPECT_EQ(runtime.policy.environment.size(), 2u);
     EXPECT_EQ(runtime.policy.allowedExecutables.size(), 1u);
@@ -723,7 +748,7 @@ TEST_F(JavaAuditRuntimeTest, ExternalInputsRequireAnExplicitReviewerRoot) {
 }
 TEST_F(JavaAuditRuntimeTest, ProjectSymlinkDoesNotGrantExternalReadAuthority) {
     auto outside = root / "secret.jar"; std::ofstream(outside) << "secret";
-    std::error_code error; fs::create_symlink(outside, project / "linked.jar", error);
+    std::error_code error; createRuntimeSymlink(outside, project / "linked.jar", error);
     ASSERT_FALSE(error) << error.message();
     request["classpath"] = {(project / "linked.jar").string()};
     EXPECT_THROW(resolveJavaAuditRuntime(launcher.string(), request, {}), std::runtime_error);
@@ -738,7 +763,7 @@ TEST_F(JavaAuditRuntimeTest, DeclaredCompilerCannotSelectTheExecutionJVM) {
     request["compiler"] = {{"javaHome", compiler.string()}, {"targetRelease", "25"}};
     EXPECT_THROW(resolveJavaAuditRuntime(launcher.string(), request, {}), std::runtime_error);
     EXPECT_EQ(resolveJavaAuditRuntime(launcher.string(), request, {compiler.string()}).executable,
-              fs::canonical(home / "bin/java").string());
+              fs::canonical(java).string());
 }
 TEST_F(JavaAuditRuntimeTest, RequiresVersionedBoundedRuntimeMetadata) {
     auto metadata = launcher.parent_path() / "topo-extract-java.runtime.json";
@@ -754,7 +779,7 @@ TEST_F(JavaAuditRuntimeTest, RejectsRuntimeModuleSymlinkIntoSubject) {
     auto modules = home / "lib/modules";
     fs::remove(modules);
     std::ofstream(project / "modules") << "project bytes";
-    std::error_code error; fs::create_symlink(project / "modules", modules, error);
+    std::error_code error; createRuntimeSymlink(project / "modules", modules, error);
     ASSERT_FALSE(error) << error.message();
     EXPECT_THROW(resolveJavaAuditRuntime(launcher.string(), request, {}), std::runtime_error);
 }
