@@ -57,6 +57,9 @@ bool JavaSafePatterns::loadDefault() {
     // the project README); the legacy analysis/catalog/ path is kept as a
     // fallback so older checkouts still resolve.
     fs::path candidates[] = {
+#ifdef TOPO_JAVA_CATALOG_DIR
+        fs::path(TOPO_JAVA_CATALOG_DIR) / "JavaSafePatterns.toml",
+#endif
         fs::path(TOPO_SOURCE_DIR) / "topo-lang-java" / "topo-check" / "analysis" / "catalog" / "JavaSafePatterns.toml",
         fs::path(TOPO_SOURCE_DIR) / "topo-lang-java" / "analysis" / "catalog" / "JavaSafePatterns.toml",
     };

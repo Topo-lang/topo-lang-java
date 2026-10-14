@@ -15,11 +15,8 @@ if(TARGET topo-lang-java-check-tests)
     return()
 endif()
 
-# Deliberately OUTSIDE the JVM_BACKEND gate: the check pipeline uses the
-# in-process extractors plus JdtBridge (jdtls) — it never spawns the
-# Gradle-built topo-extract-java jar — so coupling it to the Gradle
-# toolchain only shrank where the suite could run (CI's verify-l2 job
-# builds it with just topo-cli on the prefix).
+# Java checks require the real JDT extractor. It can be built here or
+# supplied by an installed toolchain on PATH; L2 also requires jdtls.
 if(NOT TARGET TopoJavaPlugin)
     message(STATUS "topo-lang-java-check-tests: NOT built — TopoJavaPlugin "
         "target not available in this scope.")
@@ -66,5 +63,16 @@ target_compile_definitions(topo-lang-java-check-tests PRIVATE
     TOPO_EXAMPLES_DIR="${_repo_root}/examples"
 )
 topo_set_compiler_flags(topo-lang-java-check-tests)
+if(TARGET topo-extract-java)
+    add_dependencies(topo-lang-java-check-tests topo-extract-java)
+    get_target_property(_java_extractor_dir topo-extract-java BINARY_DIR)
+    configure_file(JavaCheckEnvironment.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/JavaCheckEnvironment.cmake" @ONLY)
+endif()
 gtest_discover_tests(topo-lang-java-check-tests DISCOVERY_TIMEOUT 30
+    TEST_LIST _JAVA_CHECK_TESTS
     PROPERTIES LABELS "toolchain\;checker\;lang-java" TIMEOUT 180)
+if(TARGET topo-extract-java)
+    set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/JavaCheckEnvironment.cmake")
+endif()

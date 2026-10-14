@@ -43,6 +43,7 @@ target_link_libraries(TopoJavaAnalysis
 # Install-time consumers can override with -DTOPO_SOURCE_DIR=<root>.
 target_compile_definitions(TopoJavaAnalysis PRIVATE
     TOPO_SOURCE_DIR="${PROJECT_SOURCE_DIR}/.."
+    TOPO_JAVA_CATALOG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/catalog"
 )
 topo_set_compiler_flags(TopoJavaAnalysis)
 

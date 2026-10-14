@@ -5,9 +5,9 @@
 // cascade. Running the full default check set ("all") over a copy of
 // the example pins that regression class.
 //
-// Deliberately no GTEST_SKIP path: only the in-process L1 extractors
-// run here (no jdtls), so the test is dependency-free and CI's
-// skip != pass assert step can rely on it always running.
+// Deliberately no GTEST_SKIP path: the configured Java AST extractor
+// must be available. jdtls is unnecessary for this L1 case, and CI's
+// skip != pass assertion requires the case to run.
 
 #include "CheckRunner.h"
 

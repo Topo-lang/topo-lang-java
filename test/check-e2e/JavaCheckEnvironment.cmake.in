@@ -1,0 +1,11 @@
+# Loaded after GoogleTest discovery, including under standalone CTest.
+if(WIN32)
+    set(_JAVA_CHECK_PATH_SEPARATOR ";")
+else()
+    set(_JAVA_CHECK_PATH_SEPARATOR ":")
+endif()
+set(_JAVA_CHECK_PATH "@_java_extractor_dir@${_JAVA_CHECK_PATH_SEPARATOR}$ENV{PATH}")
+string(REPLACE ";" "\\;" _JAVA_CHECK_PATH "${_JAVA_CHECK_PATH}")
+foreach(_JAVA_CHECK_TEST IN LISTS _JAVA_CHECK_TESTS)
+    set_tests_properties("${_JAVA_CHECK_TEST}" PROPERTIES ENVIRONMENT "PATH=${_JAVA_CHECK_PATH}")
+endforeach()

@@ -386,13 +386,18 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_PREFIX_PATH="${RUNNER_TEMP}/topo-install;${RUNNER_TEMP}/topo-cli-install" \
               -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
-              -DTOPO_LANG_JAVA_BUILD_TESTS=ON
+              -DTOPO_LANG_JAVA_BUILD_TESTS=ON \
+              -DTOPO_LANG_JAVA_ENABLE_JVM_BACKEND=ON \
+              -DTOPO_GRADLE_JAVA_HOME="${JAVA_HOME}" \
+              "-DTOPO_LANG_JAVA_GRADLE_ARGS=--no-daemon --console=plain"
 
       - name: Build
         run: cmake --build build
 
       - name: Run checker-e2e suite
         run: |
+          # The direct live-case assertion below also needs this launcher.
+          echo "${GITHUB_WORKSPACE}/build" >> "$GITHUB_PATH"
           # --no-tests=error: if the topo-cli gate silently failed and the
           # checker suite was never registered, the job FAILS rather than
           # greening on zero tests.

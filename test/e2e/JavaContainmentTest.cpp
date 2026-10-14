@@ -21,6 +21,18 @@ static std::string fixtureDir(const char* name) {
 /// spuriously fail.
 class JavaContainmentL2 : public ::testing::Test {
 protected:
+    void expectCompletedAnalysis(const CheckRunner& runner) {
+        bool completed = false;
+        for (const auto& entry : runner.lastResults()) {
+            for (const auto& diagnostic : entry.second.diagnostics) {
+                EXPECT_NE(diagnostic.check, "containment-l2") << diagnostic.message;
+                EXPECT_NE(diagnostic.check, "java-analysis") << diagnostic.message;
+                completed = completed || diagnostic.message.find("L2 deep analysis completed") != std::string::npos;
+            }
+        }
+        EXPECT_TRUE(completed) << "The fixture must exercise JDT deep analysis";
+    }
+
     void SetUp() override {
         if (std::system("command -v jdtls >/dev/null 2>&1") != 0) {
             GTEST_SKIP() << "jdtls unavailable on PATH — L2 deep containment "
@@ -219,6 +231,7 @@ TEST_F(JavaContainmentL2, ContainmentL2ExternalOk) {
     CheckRunner runner(cfg);
     ASSERT_TRUE(runner.loadConfig());
     EXPECT_EQ(runner.run(), 0);
+    expectCompletedAnalysis(runner);
 }
 
 TEST_F(JavaContainmentL2, ContainmentL2RuntimeExec) {
@@ -230,4 +243,15 @@ TEST_F(JavaContainmentL2, ContainmentL2RuntimeExec) {
     CheckRunner runner(cfg);
     ASSERT_TRUE(runner.loadConfig());
     EXPECT_EQ(runner.run(), 1);
+    expectCompletedAnalysis(runner);
+    bool foundRuntimeViolation = false;
+    for (const auto& entry : runner.lastResults()) {
+        for (const auto& diagnostic : entry.second.diagnostics) {
+            foundRuntimeViolation = foundRuntimeViolation ||
+                (diagnostic.severity == topo::check::Severity::Error &&
+                 diagnostic.line > 0 &&
+                 diagnostic.message.find("Runtime") != std::string::npos);
+        }
+    }
+    EXPECT_TRUE(foundRuntimeViolation) << "Expected a source-located Runtime capability violation";
 }
