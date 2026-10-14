@@ -30,10 +30,12 @@ target_include_directories(topo-lang-java-tests PRIVATE
 topo_set_compiler_flags(topo-lang-java-tests)
 # Real JDT cases use the same extractor as this build. Keep protocol cases
 # independent so their per-test fake launcher remains first on PATH.
-set(_JAVA_SOURCE_FACTS_HAVE_EXTRACTOR FALSE)
+# CTest includes the generated script without this project's policy scope.
+# Numeric constants remain boolean under older CTest/CMP0012 behavior too.
+set(_JAVA_SOURCE_FACTS_HAVE_EXTRACTOR 0)
 if(TARGET topo-extract-java)
     add_dependencies(topo-lang-java-tests topo-extract-java)
-    set(_JAVA_SOURCE_FACTS_HAVE_EXTRACTOR TRUE)
+    set(_JAVA_SOURCE_FACTS_HAVE_EXTRACTOR 1)
 else()
     message(STATUS "JavaSourceFactsTest real JDT cases disabled: topo-extract-java is not built")
 endif()

@@ -27,6 +27,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -54,15 +56,20 @@ std::string writeFile(const fs::path& dir, const std::string& filename,
     return p.string();
 }
 
-/// Mkdtemp wrapper returning the directory path. The test fixture
-/// removes it at teardown.
+/// Atomically reserve a unique directory on every supported platform.
+/// The test fixture removes it at teardown.
 fs::path makeTempDir() {
-    std::string tpl = (fs::temp_directory_path() / "topo-java-roundtrip-XXXXXX").string();
-    std::vector<char> buf(tpl.begin(), tpl.end());
-    buf.push_back('\0');
-    char* p = mkdtemp(buf.data());
-    if (!p) throw std::runtime_error("mkdtemp failed");
-    return fs::path(p);
+    std::random_device random;
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        const fs::path candidate = fs::temp_directory_path() /
+            ("topo-java-roundtrip-" + std::to_string(random()) + "-" +
+             std::to_string(random()));
+        std::error_code error;
+        if (fs::create_directory(candidate, error)) return candidate;
+        if (error && error != std::errc::file_exists)
+            throw fs::filesystem_error("create temporary directory", candidate, error);
+    }
+    throw std::runtime_error("unable to reserve a unique temporary directory");
 }
 
 class JavaEmitterRealJavacFixture : public ::testing::Test {
