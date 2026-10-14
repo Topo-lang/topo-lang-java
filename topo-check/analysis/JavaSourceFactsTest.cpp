@@ -1,6 +1,7 @@
 #include "JavaAnalysisProvider.h"
 #include "extract/JavaSourceFacts.h"
 #include "topo/Platform/Platform.h"
+#include "topo/Platform/TempFile.h"
 #include "topo/Distribution/Sha256.h"
 #include "topo/Check/Audit.h"
 #include <gtest/gtest.h>
@@ -20,6 +21,12 @@ namespace fs = std::filesystem;
 using namespace topo::check;
 using Json = nlohmann::json;
 namespace {
+fs::path nativeRuntimePath(const fs::path& path) {
+    std::error_code error;
+    const auto resolved = topo::platform::canonicalPath(path, error);
+    if (error) throw fs::filesystem_error("resolve runtime fixture path", path, error);
+    return resolved;
+}
 void createRuntimeSymlink(const fs::path& target, const fs::path& link, std::error_code& error) {
 #ifdef _WIN32
     auto nativeTarget = target; nativeTarget.make_preferred();
@@ -734,22 +741,22 @@ protected:
 };
 TEST_F(JavaAuditRuntimeTest, ResolvesRelativeDescriptorAndBindsNativeRuntime) {
     auto runtime = resolveJavaAuditRuntime(launcher.string(), request, {});
-    EXPECT_EQ(runtime.executable, fs::canonical(java).string());
-    EXPECT_EQ(runtime.arguments.back(), fs::canonical(jar).string());
+    EXPECT_EQ(runtime.executable, nativeRuntimePath(java).string());
+    EXPECT_EQ(runtime.arguments.back(), nativeRuntimePath(jar).string());
     EXPECT_EQ(runtime.policy.environment.size(), 2u);
     EXPECT_EQ(runtime.policy.allowedExecutables.size(), 1u);
-    EXPECT_TRUE(runtime.inputDigests.count(fs::canonical(home / "lib/libjvm.dylib").string()));
-    EXPECT_TRUE(runtime.inputDigests.count(fs::canonical(home / "lib/classes.jsa").string()));
-    EXPECT_TRUE(runtime.inputDigests.count(fs::canonical(home / "lib/jvm.cfg").string()));
+    EXPECT_TRUE(runtime.inputDigests.count(nativeRuntimePath(home / "lib/libjvm.dylib").string()));
+    EXPECT_TRUE(runtime.inputDigests.count(nativeRuntimePath(home / "lib/classes.jsa").string()));
+    EXPECT_TRUE(runtime.inputDigests.count(nativeRuntimePath(home / "lib/jvm.cfg").string()));
     auto inventory = runtime.runtimeInventory;
     std::ofstream(home / "lib/new-runtime-file") << "added";
-    EXPECT_NE(inventory, javaAuditRuntimeInventory(fs::canonical(home)));
+    EXPECT_NE(inventory, javaAuditRuntimeInventory(nativeRuntimePath(home)));
     auto before = resolveJavaAuditRuntime(launcher.string(), request, {}).inputDigests;
     std::ofstream(home / "lib/libjvm.dylib") << "changed bytes";
     std::ofstream(home / "lib/classes.jsa") << "changed CDS archive";
     auto after = resolveJavaAuditRuntime(launcher.string(), request, {}).inputDigests;
     for (const auto& path : {home / "lib/libjvm.dylib", home / "lib/classes.jsa"})
-        EXPECT_NE(before.at(fs::canonical(path).string()), after.at(fs::canonical(path).string()));
+        EXPECT_NE(before.at(nativeRuntimePath(path).string()), after.at(nativeRuntimePath(path).string()));
 }
 TEST_F(JavaAuditRuntimeTest, ExternalInputsRequireAnExplicitReviewerRoot) {
     auto dependency = root / "dependency"; fs::create_directory(dependency);
@@ -776,7 +783,7 @@ TEST_F(JavaAuditRuntimeTest, DeclaredCompilerCannotSelectTheExecutionJVM) {
     request["compiler"] = {{"javaHome", compiler.string()}, {"targetRelease", "25"}};
     EXPECT_THROW(resolveJavaAuditRuntime(launcher.string(), request, {}), std::runtime_error);
     EXPECT_EQ(resolveJavaAuditRuntime(launcher.string(), request, {compiler.string()}).executable,
-              fs::canonical(java).string());
+              nativeRuntimePath(java).string());
 }
 TEST_F(JavaAuditRuntimeTest, RequiresVersionedBoundedRuntimeMetadata) {
     auto metadata = launcher.parent_path() / "topo-extract-java.runtime.json";
